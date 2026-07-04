@@ -1,0 +1,9 @@
+# Render.com: New > Blueprint, point at the repo containing this file
+services:
+  - type: web
+    name: langlayer-demo
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
