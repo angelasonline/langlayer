@@ -162,7 +162,7 @@ def test_demo_seed_ws_subscribe_and_live_push():
 
     seed = client.post("/v1/demo/seed").json()
     assert len(seed["riders"]) == 3 and seed["provider_mode"] in ("simulated", "openai")
-    devon = next(r for r in seed["riders"] if r["name"] == "Devon")
+    devon = next(r for r in seed["riders"] if r["name"] == "Sandi")
 
     with client.websocket_connect(f"/v1/deliveries/subscribe/{devon['endpoint_id']}") as ws:
         resp = client.post(f"/v1/channels/{seed['channel_id']}/events",
@@ -171,7 +171,7 @@ def test_demo_seed_ws_subscribe_and_live_push():
                                  "payload": "Elevator out of service"})
         assert resp.status_code == 200 and resp.json()["plans"] == 3
         msg = ws.receive_json()
-        assert msg["type"] == "artifact" and msg["rider"] == "Devon"
+        assert msg["type"] == "artifact" and msg["rider"] == "Sandi"
         assert msg["language"] == "asl" and msg["modality"] == "sign"
         assert msg["delivered"] and set(msg["decisions"]) == {"D1","D2","D3","D4","D5","D6"}
 
@@ -190,7 +190,7 @@ def test_rider_dashboard_and_data_endpoints():
     assert client.get("/rider").status_code == 200
     assert client.get("/dashboard").status_code == 200
     riders = client.get("/v1/demo/riders").json()
-    assert {r["name"] for r in riders} >= {"Marisol", "Devon", "Ana"}
+    assert {r["name"] for r in riders} >= {"Monica", "Sandi", "Nate"}
     receipts = client.get("/v1/receipts").json()
     assert receipts and receipts[0]["sla_met"] is True and receipts[0]["signature"]
 
@@ -430,3 +430,30 @@ def test_interpreter_contract_shapes():
                              priority_class="conversational", compliance_mode="hipaa",
                              context_summary="clinic lobby", max_wait_seconds=60)
     assert req.compliance_mode == "hipaa"
+
+
+def test_demo_templates_survive_registry_recreation():
+    """Redeploy simulation: a fresh registry still serves demo templates."""
+    import asyncio
+    from langlayer.models import ContentEvent, PriorityClass
+    from langlayer.providers import default_registry
+    from langlayer.render import process_event
+    from langlayer.store import Store
+    from langlayer.models import (Channel, Endpoint, LanguagePref, Modality,
+                                  ModalityPref, PreferenceSet, PresenceSession,
+                                  Profile, Venue)
+    store, registry = Store(), default_registry()  # brand new, no seed call
+    venue = Venue(name="V"); store.venues[venue.id] = venue
+    chan = Channel(venue_id=venue.id, name="c"); store.channels[chan.id] = chan
+    p = Profile(display_name="X", preferences=PreferenceSet(
+        languages=[LanguagePref(tag="es", rank=1)],
+        modalities=[ModalityPref(kind=Modality.captions, rank=1)]))
+    store.profiles[p.id] = p
+    e = Endpoint(profile_id=p.id, capabilities={"text_out"}); store.endpoints[e.id] = e
+    s = PresenceSession(profile_id=p.id, endpoint_id=e.id,
+                        attached_to=[f"venue:{venue.id}"]); store.presence[s.id] = s
+    ev = ContentEvent(channel_id=chan.id, priority_class=PriorityClass.announcement,
+                      kind="template_ref", template="arrival",
+                      slots={"line": "Red", "min": 3})
+    rec = asyncio.run(process_event(ev, store, registry))[0]
+    assert rec.delivered and rec.source_used == "cache" and rec.failovers == 0
