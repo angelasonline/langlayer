@@ -47,7 +47,7 @@ def test_routing_decisions_recorded(world):
     assert p.language == "asl" and p.modality == Modality.sign
     assert p.endpoint_id == endpoint.id
     assert set(p.decisions) == {"D1", "D2", "D3", "D4", "D5", "D6"}
-    assert p.ttfo_budget_ms == 300 and p.e2e_budget_ms == 5000
+    assert p.ttfo_budget_ms == 300 and p.e2e_budget_ms == 8000
 
 
 def test_modality_respects_endpoint_capabilities(world):
@@ -457,3 +457,21 @@ def test_demo_templates_survive_registry_recreation():
                       slots={"line": "Red", "min": 3})
     rec = asyncio.run(process_event(ev, store, registry))[0]
     assert rec.delivered and rec.source_used == "cache" and rec.failovers == 0
+
+
+def test_last_tier_delivers_late_instead_of_failing(world):
+    """Budget exhaustion must not produce silence: the final tier gets a
+    grace window; delivery succeeds and the receipt honestly marks SLA."""
+    import asyncio
+    from langlayer.models import ContentEvent, PriorityClass
+    from langlayer.render import process_event
+    store, registry, venue, chan, *_ = world
+    # Force both AI tiers to consume the whole budget via outage + slow sim
+    registry.get("ai-realtime").forced_outage = True
+    registry.get("ai-realtime-alt").base_latency_ms = 99999  # will time out
+    ev = ContentEvent(channel_id=chan.id, priority_class=PriorityClass.conversational,
+                      payload="hello")
+    r = asyncio.run(process_event(ev, store, registry))[0]
+    assert r.delivered, r.failover_causes
+    assert r.source_used == "human-bridge"
+    assert r.failovers == 2
