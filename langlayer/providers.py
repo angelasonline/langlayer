@@ -133,7 +133,8 @@ class HumanBridgeSim(Provider):
     async def render(self, plan: DeliveryPlan, event: ContentEvent) -> Artifact:
         await asyncio.sleep(0.35)
         return Artifact(plan_id=plan.id, modality=plan.modality, language=plan.language,
-                        content=_transform(event.payload, plan.language, plan.modality),
+                        content="[Human interpreter dispatch: architecture complete; "
+                                "live interpreter network integration pending] " + event.payload,
                         provider=self.name, quality_estimate=1.0)
 
 
@@ -166,7 +167,17 @@ class ProviderRegistry:
 def default_registry() -> ProviderRegistry:
     import os
     r = ProviderRegistry()
-    if os.environ.get("OPENAI_API_KEY"):
+    has_oai = bool(os.environ.get("OPENAI_API_KEY"))
+    has_ant = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    if has_ant:
+        from .providers_anthropic import AnthropicProvider
+        r.register(AnthropicProvider("ai-realtime", model="claude-fable-5"))
+        if has_oai:
+            from .providers_openai import OpenAIProvider
+            r.register(OpenAIProvider("ai-realtime-alt", model="gpt-4o-mini"))
+        else:
+            r.register(AnthropicProvider("ai-realtime-alt", model="claude-sonnet-4-6"))
+    elif has_oai:
         from .providers_openai import OpenAIProvider
         r.register(OpenAIProvider("ai-realtime", model="gpt-4o-mini"))
         r.register(OpenAIProvider("ai-realtime-alt", model="gpt-4o"))

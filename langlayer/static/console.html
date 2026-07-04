@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Language Layer: Host Console</title>
+<title>Language Layer: Space Console</title>
 <style>
   *{box-sizing:border-box;margin:0}
   body{font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#111;
@@ -25,9 +25,9 @@
   td{padding:.4rem;border-bottom:1px solid #eee}
   #sent{display:flex;flex-direction:column;gap:.5rem;margin-top:.4rem}
   .msg{border:1px solid #ddd;border-radius:10px;padding:.6rem .8rem;font-size:.88rem}
-  .msg .meta{font-size:.7rem;color:#777;margin-top:.3rem}
-  footer{margin-top:2.2rem;font-size:.75rem;color:#777}
-  footer a{color:#777}
+  .msg .meta{font-size:.7rem;color:#595959;margin-top:.3rem}
+  footer{margin-top:2.2rem;font-size:.75rem;color:#595959}
+  footer a{color:#595959}
 </style>
 </head>
 <body>
@@ -41,7 +41,7 @@
   <span class="chip">est. cost: <b id="cost">$0.00</b></span>
 </div>
 
-<textarea id="msg" placeholder="Type an announcement. Everyone connected receives it in their own language and format."></textarea>
+<textarea id="msg" placeholder="Type an announcement. Everyone in the space receives it in their own language and format."></textarea>
 <div class="row">
   <select id="klass" aria-label="Priority">
     <option value="announcement">announcement</option>
@@ -50,14 +50,14 @@
     <option value="emergency">emergency</option>
   </select>
   <button class="primary" onclick="send()">Send announcement</button>
-  <button id="ptt" onmousedown="pttStart()" onmouseup="pttStop()" onmouseleave="pttStop()"
+  <button id="ptt" aria-label="Hold to speak an announcement" onmousedown="pttStart()" onmouseup="pttStop()" onmouseleave="pttStop()"
     ontouchstart="pttStart(event)" ontouchend="pttStop(event)">Hold to speak</button>
   <button onclick="copyAttendee()">Copy attendee link</button>
   <button onclick="downloadTranscript()">Download transcript</button>
 </div>
 
 <h2>Sent</h2>
-<div id="sent"></div>
+<div id="sent" role="log" aria-live="polite" aria-label="Sent announcements"></div>
 
 <h2>Attendee log</h2>
 <table><thead><tr><th>Name</th><th>Type</th><th>Language</th><th>Format</th><th>Joined</th></tr></thead>
@@ -71,9 +71,9 @@ const code = new URLSearchParams(location.search).get('code');
 let CHANNEL = null;
 
 async function boot(){
-  if (!code){ document.body.innerHTML = '<h1>Host console</h1><p>This page needs a host link. Create an event at <a href="/host">/host</a>.</p>'; return; }
+  if (!code){ document.body.innerHTML = '<h1>Space console</h1><p>This page needs a host link. Create a space at <a href="/host">/host</a>.</p>'; return; }
   const r = await fetch(`/v1/events/${code}`);
-  if (!r.ok){ document.body.innerHTML = '<h1>Host console</h1><p>Event not found. It may have ended, or the server restarted. Create a new one at <a href="/host">/host</a>.</p>'; return; }
+  if (!r.ok){ document.body.innerHTML = '<h1>Space console</h1><p>Space not found. It may have ended, or the server restarted. Create a new one at <a href="/host">/host</a>.</p>'; return; }
   const d = await r.json();
   CHANNEL = d.channel_id;
   $('evname').textContent = d.name;

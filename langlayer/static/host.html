@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Language Layer: Host an Event</title>
+<title>Language Layer: Create a Space</title>
 <style>
   *{box-sizing:border-box;margin:0}
   body{font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#111;
@@ -24,20 +24,20 @@
   .lbl{font-size:.8rem;font-weight:600;margin-top:.9rem}
   #qr{margin:1rem auto 0;width:180px;height:180px}
   .hint{font-size:.78rem;color:#555;margin-top:.8rem}
-  footer{margin-top:2.5rem;font-size:.75rem;color:#777}
-  footer a{color:#777}
+  footer{margin-top:2.5rem;font-size:.75rem;color:#595959}
+  footer a{color:#595959}
 </style>
 </head>
 <body>
 <h1>Language Layer</h1>
-<p class="tag">Every announcement, in your language, automatically.</p>
+<p class="tag">Language access, turned on like Wi-Fi.</p>
 
 <form id="form" onsubmit="return create(event)">
-  <label for="name">Event name</label>
-  <input id="name" required placeholder="e.g. City Council Meeting, Building 4 Lobby">
+  <label for="name">Space name</label>
+  <input id="name" required placeholder="e.g. Building 4 Lobby, Stadium Section 112, City Council">
   <label for="invite">Host invite code</label>
   <input id="invite" required placeholder="Provided by your Language Layer contact">
-  <button type="submit">Create event</button>
+  <button type="submit">Create space</button>
   <p class="err" id="err"></p>
 </form>
 

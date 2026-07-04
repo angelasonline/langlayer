@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Language Layer: Coverage</title>
+<style>
+  *{box-sizing:border-box;margin:0}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#111;
+    max-width:760px;margin:0 auto;padding:2rem 1.2rem 3rem;line-height:1.5}
+  h1{font-size:1.25rem;font-weight:700}
+  .sub{color:#555;font-size:.92rem;margin:.3rem 0 1.4rem}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  th{text-align:left;color:#555;font-weight:600;padding:.4rem .5rem;border-bottom:1px solid #ddd;
+    position:sticky;top:0;background:#fff}
+  td{padding:.45rem .5rem;border-bottom:1px solid #eee}
+  .ok{color:#1E7F4F;font-weight:600}
+  .no{color:#6b6b6b}
+  .pill{border-radius:999px;padding:.08rem .55rem;font-size:.72rem;font-weight:600}
+  .strong{background:#E7F3EC;color:#1E7F4F}
+  .emerging{background:#F5F5F5;color:#555}
+  .sign{background:#FBEAE9;color:#B3261E}
+  .notes{margin-top:1.6rem;border:1px solid #ddd;border-radius:12px;padding:1rem 1.2rem;font-size:.88rem;color:#333}
+  .notes p{margin:.4rem 0}
+  .notes b{color:#111}
+  a{color:#111}
+  footer{margin-top:2rem;font-size:.78rem;color:#595959}
+</style>
+</head>
+<body>
+<h1>Language coverage, honestly</h1>
+<p class="sub">What today's frontier AI models can and cannot deliver. Every delivery is quality scored; nothing here is promised, it is measured.</p>
+
+<table>
+  <thead><tr><th>Language</th><th>Text</th><th>Spoken aloud</th><th>Model quality</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<div class="notes">
+  <p><b>Text:</b> available in every listed language, scored per delivery.</p>
+  <p><b>Spoken aloud:</b> device speech voices do not exist for every language. Where a voice is missing, spoken audio falls back to captions rather than failing silently. This is a gap in today's platforms, not a settings problem.</p>
+  <p><b>Sign languages:</b> the largest gap in every frontier model. No AI today produces usable sign-language video. American Sign Language is delivered as text gloss, and video is being developed with Deaf-led evaluation, because only Deaf raters can judge it.</p>
+  <p><b>Emerging:</b> usable today, verify before high-stakes use. For regulated moments, the platform routes to human interpreters by policy.</p>
+</div>
+
+<footer><a href="/">Language Layer</a> · Encrypted in transit. Content never stored.</footer>
+
+<script>
+(async () => {
+  const d = await (await fetch('/v1/coverage')).json();
+  document.getElementById('rows').innerHTML = d.languages.map(l => `
+    <tr>
+      <td dir="auto">${l.name}${l.rtl ? ' <span style="color:#6b6b6b;font-size:.75em">(right to left)</span>' : ''}</td>
+      <td class="ok">${l.tier === 'sign' ? 'gloss' : '\u2713'}</td>
+      <td class="${l.voice ? 'ok' : 'no'}">${l.voice ? '\u2713' : 'captions fallback'}</td>
+      <td><span class="pill ${l.tier}">${l.tier === 'sign' ? 'gloss only today' : l.tier}</span></td>
+    </tr>`).join('');
+})();
+</script>
+</body>
+</html>

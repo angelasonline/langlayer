@@ -84,17 +84,94 @@ async def execute_plan(plan: DeliveryPlan, event: ContentEvent,
 
 async def process_event(event: ContentEvent, store: Store,
                         registry: ProviderRegistry) -> list[DeliveryReceipt]:
-    """Ingest -> route -> render/deliver -> assure, fanned out concurrently."""
+    """Ingest -> route -> render once per (language, modality, chain) -> fan out.
+
+    300 attendees in Spanish captions cost ONE model call, not 300. Each
+    recipient still gets an individual signed receipt.
+    """
     from .routing import route
-    store.events[event.id] = event
+    if hasattr(store, "save_content_event"):
+        await asyncio.to_thread(store.save_content_event, event)
+    else:
+        store.events[event.id] = event
     health = {name: p.circuit.state for name, p in registry.providers.items()}
     plans = route(event, store, health)
     for p in plans:
         store.plans[p.id] = p
         store.log("routing-engine", "plan", p.id)
-    receipts = await asyncio.gather(
-        *(execute_plan(p, event, registry, store) for p in plans))
-    return list(receipts)
+
+    groups: dict[tuple, list[DeliveryPlan]] = {}
+    for p in plans:
+        key = (p.language, p.modality, tuple(s.provider for s in p.source_chain))
+        groups.setdefault(key, []).append(p)
+
+    async def run_group(members: list[DeliveryPlan]) -> list[DeliveryReceipt]:
+        lead = await execute_plan(members[0], event, registry, store)
+        out = [lead]
+        lead_artifact = store.artifacts.get(lead.artifact_id) if lead.artifact_id else None
+        for p in members[1:]:
+            if lead_artifact is not None:
+                art = Artifact(plan_id=p.id, modality=lead_artifact.modality,
+                               language=lead_artifact.language,
+                               content=lead_artifact.content,
+                               provider=lead_artifact.provider,
+                               quality_estimate=lead_artifact.quality_estimate)
+                store.artifacts[art.id] = art
+                r = DeliveryReceipt(
+                    plan_id=p.id, event_id=event.id, profile_id=p.profile_id,
+                    artifact_id=art.id, delivered=True,
+                    source_used=lead.source_used, failovers=lead.failovers,
+                    failover_causes=list(lead.failover_causes),
+                    ttfo_ms=lead.ttfo_ms, e2e_ms=lead.e2e_ms,
+                    quality=lead.quality)
+            else:
+                r = DeliveryReceipt(
+                    plan_id=p.id, event_id=event.id, profile_id=p.profile_id,
+                    artifact_id=None, delivered=False, source_used=None,
+                    failovers=lead.failovers,
+                    failover_causes=list(lead.failover_causes),
+                    ttfo_ms=None, e2e_ms=None, quality=None)
+            r.sla_violations = list(lead.sla_violations)
+            r.sla_met = lead.sla_met
+            r.signature = _sign(r)
+            store.receipts[r.id] = r
+            out.append(r)
+        return out
+
+    nested = await asyncio.gather(*(run_group(m) for m in groups.values()))
+    receipts = [r for grp in nested for r in grp]
+    if hasattr(store, "save_delivery_batch"):
+        await asyncio.to_thread(store.save_delivery_batch, plans, receipts)
+
+    # Production QE: judge after delivery (adds zero attendee latency),
+    # update + re-sign receipts with the measured score.
+    from .quality import judge, live_judging_available
+    if live_judging_available() and event.payload:
+        async def _score():
+            done: dict[tuple, float] = {}
+            for grp in groups.values():
+                lead = grp[0]
+                art = None
+                lead_receipt = next((x for x in receipts if x.plan_id == lead.id), None)
+                if lead_receipt and lead_receipt.artifact_id:
+                    art = store.artifacts.get(lead_receipt.artifact_id)
+                if art is None or art.content.startswith("["):
+                    continue
+                score = await judge(event.payload, art.content, lead.language)
+                if score is None:
+                    continue
+                for p in grp:
+                    rec = next((x for x in receipts if x.plan_id == p.id), None)
+                    if rec and rec.delivered:
+                        rec.quality = score
+                        if score < 0.85 and "quality below floor" not in rec.sla_violations:
+                            rec.sla_violations.append("quality below floor")
+                            rec.sla_met = False
+                        rec.signature = _sign(rec)
+            if hasattr(store, "save_delivery_batch"):
+                await asyncio.to_thread(store.save_delivery_batch, [], receipts)
+        asyncio.get_event_loop().create_task(_score())
+    return receipts
 
 
 def _pct(sorted_vals: list[int], q: float) -> int | None:

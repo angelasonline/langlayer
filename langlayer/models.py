@@ -17,20 +17,63 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
-# Supported languages, alphabetical by English name (tag -> display name)
-LANGUAGES = [
-    ("asl", "American Sign Language"),
-    ("ar", "Arabic"),
-    ("bn", "Bengali"),
-    ("en", "English"),
-    ("fr", "French"),
-    ("it", "Italian"),
-    ("zh", "Mandarin Chinese"),
-    ("pt", "Portuguese"),
-    ("ru", "Russian"),
-    ("es", "Spanish"),
+# Supported languages, alphabetical by English name.
+# Fields: tag, name, rtl, voice (device speech voices typically available), tier
+# tier: "strong" = consistently high model quality; "emerging" = usable, verify
+# for high-stakes use; "sign" = text gloss only today (the largest gap in every
+# frontier model: none can produce sign-language video).
+LANGUAGES_FULL = [
+    ("asl", "American Sign Language", False, False, "sign"),
+    ("am", "Amharic", False, False, "emerging"),
+    ("ar", "Arabic", True, True, "strong"),
+    ("bn", "Bengali", False, False, "strong"),
+    ("my", "Burmese", False, False, "emerging"),
+    ("zh", "Chinese (Mandarin)", False, True, "strong"),
+    ("cs", "Czech", False, True, "strong"),
+    ("da", "Danish", False, True, "strong"),
+    ("nl", "Dutch", False, True, "strong"),
+    ("en", "English", False, True, "strong"),
+    ("fa", "Farsi", True, False, "strong"),
+    ("fi", "Finnish", False, True, "strong"),
+    ("fr", "French", False, True, "strong"),
+    ("de", "German", False, True, "strong"),
+    ("el", "Greek", False, True, "strong"),
+    ("ha", "Hausa", False, False, "emerging"),
+    ("he", "Hebrew", True, True, "strong"),
+    ("hi", "Hindi", False, True, "strong"),
+    ("hu", "Hungarian", False, True, "strong"),
+    ("id", "Indonesian", False, True, "strong"),
+    ("it", "Italian", False, True, "strong"),
+    ("ja", "Japanese", False, True, "strong"),
+    ("km", "Khmer", False, False, "emerging"),
+    ("ko", "Korean", False, True, "strong"),
+    ("lo", "Lao", False, False, "emerging"),
+    ("mn", "Mongolian", False, False, "emerging"),
+    ("ne", "Nepali", False, False, "emerging"),
+    ("nb", "Norwegian", False, True, "strong"),
+    ("pl", "Polish", False, True, "strong"),
+    ("pt", "Portuguese", False, True, "strong"),
+    ("ro", "Romanian", False, True, "strong"),
+    ("ru", "Russian", False, True, "strong"),
+    ("si", "Sinhala", False, False, "emerging"),
+    ("so", "Somali", False, False, "emerging"),
+    ("es", "Spanish", False, True, "strong"),
+    ("sw", "Swahili", False, False, "emerging"),
+    ("tl", "Tagalog", False, False, "strong"),
+    ("ta", "Tamil", False, False, "strong"),
+    ("te", "Telugu", False, False, "strong"),
+    ("th", "Thai", False, True, "strong"),
+    ("tr", "Turkish", False, True, "strong"),
+    ("uk", "Ukrainian", False, True, "strong"),
+    ("ur", "Urdu", True, False, "strong"),
+    ("vi", "Vietnamese", False, True, "strong"),
+    ("yo", "Yoruba", False, False, "emerging"),
+    ("zu", "Zulu", False, False, "emerging"),
 ]
+LANGUAGES = [(t, n) for t, n, _r, _v, _tier in LANGUAGES_FULL]
 LANGUAGE_NAMES = dict(LANGUAGES)
+LANGUAGE_INFO = {t: {"tag": t, "name": n, "rtl": r, "voice": v, "tier": tier}
+                 for t, n, r, v, tier in LANGUAGES_FULL}
 
 MODALITY_LABELS = {
     "speech": "Spoken audio",
@@ -62,8 +105,8 @@ class PriorityClass(str, Enum):
 # Latency budgets (ms): time-to-first-output, end-to-end. Spec §2.1.
 LATENCY_BUDGETS = {
     PriorityClass.emergency: (900, 2000),
-    PriorityClass.conversational: (300, 3000),  # interim: non-streaming adapter; restore 1000 with Realtime streaming
-    PriorityClass.live: (1500, 3000),
+    PriorityClass.conversational: (300, 5000),  # interim: non-streaming adapters; restore 1000 with streaming
+    PriorityClass.live: (1500, 5000),
     PriorityClass.announcement: (2000, 4000),
     PriorityClass.static: (300, 300),
 }

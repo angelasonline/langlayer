@@ -11,7 +11,7 @@
     --ink:#FFFFFF; --ink2:#F5F5F5; --ink3:#DDDDDD;
     --paper:#FFFFFF; --card:#FFFFFF; --line:#DDDDDD;
     --accent:#111111; --accent-soft:#FBEAE9;
-    --ok:#1E7F4F; --bad:#B3261E; --muted:#555555; --lav:#777777;
+    --ok:#1E7F4F; --bad:#B3261E; --muted:#555555; --lav:#595959777;
   }
   *{box-sizing:border-box; margin:0}
   body{background:#fff; color:#111; font-family:'IBM Plex Sans',system-ui,sans-serif; min-height:100vh}
@@ -35,7 +35,7 @@
   button.primary:hover{background:#000}
   button.ghost:hover{background:#f2f2f2}
   button[aria-pressed="true"]{background:var(--bad); border-color:var(--bad)}
-  .hint{font-size:.75rem; color:#777}
+  .hint{font-size:.75rem; color:#595959}
 
   .phones{display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:1.2rem; padding:0 1.6rem 1.8rem}
   .phone{background:#fff; color:#111; border-radius:26px; border:2px solid #111;
@@ -48,12 +48,12 @@
   .who{font-weight:600; font-size:.92rem}
   .prefs{font-size:.72rem; color:#555}
   .feed{flex:1; padding:.8rem .9rem; display:flex; flex-direction:column; gap:.6rem; overflow-y:auto}
-  .empty{margin:auto; text-align:center; color:#777; font-size:.82rem; max-width:16rem}
+  .empty{margin:auto; text-align:center; color:#595959; font-size:.82rem; max-width:16rem}
   .bubble{background:#fff; border:1px solid #ddd; border-radius:14px 14px 14px 4px;
     padding:.6rem .7rem; font-size:.88rem; line-height:1.35; cursor:pointer; animation:pop .18s ease-out}
   .bubble.emergency{background:#FBEAE9; border-color:#B3261E}
   .bubble.failed{background:#FBEAE9; border-color:var(--bad); color:var(--bad)}
-  .meta{display:flex; gap:.45rem; flex-wrap:wrap; margin-top:.45rem; font-size:.68rem; color:#777}
+  .meta{display:flex; gap:.45rem; flex-wrap:wrap; margin-top:.45rem; font-size:.68rem; color:#595959}
   .meta .ok{color:var(--ok); font-weight:600}
   .meta .warn{color:#8a5a00; font-weight:600}
   .meta .err{color:var(--bad); font-weight:600}

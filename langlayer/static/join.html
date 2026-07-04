@@ -22,14 +22,14 @@
   .dot{width:9px;height:9px;border-radius:50%;background:#B3261E;margin-left:auto}
   .dot.on{background:#1E7F4F}
   #feed{flex:1;padding:1rem 0;display:flex;flex-direction:column;gap:.6rem;overflow-y:auto}
-  .empty{margin:auto;text-align:center;color:#777;font-size:.85rem;max-width:17rem}
+  .empty{margin:auto;text-align:center;color:#595959;font-size:.85rem;max-width:17rem}
   .bubble{border:1px solid #ddd;border-radius:12px;padding:.75rem .85rem;font-size:1rem;animation:pop .18s ease-out}
   .bubble.emergency{border-color:#B3261E;background:#FBEAE9;font-weight:600}
-  .meta{margin-top:.4rem;font-size:.68rem;color:#777}
+  .meta{margin-top:.4rem;font-size:.68rem;color:#595959}
   @keyframes pop{from{transform:translateY(6px);opacity:0}to{transform:none;opacity:1}}
   @media (prefers-reduced-motion:reduce){.bubble{animation:none}}
-  footer{padding-top:.8rem;font-size:.72rem;color:#777;text-align:center}
-  footer a{color:#777}
+  footer{padding-top:.8rem;font-size:.72rem;color:#595959;text-align:center}
+  footer a{color:#595959}
 </style>
 </head>
 <body>
@@ -53,13 +53,13 @@
   <label for="fmt">Format</label>
   <select id="fmt"></select>
 
-  <button class="go" onclick="join()">Join event</button>
+  <button class="go" onclick="join()">Join this space</button>
   <p class="err" id="err"></p>
 </div>
 
 <div id="feedwrap">
   <div class="bar"><strong id="who"></strong><span id="prefs" style="color:#555"></span><span class="dot" id="dot"></span></div>
-  <div id="feed"><p class="empty">You are connected. Announcements will appear here in your language.</p></div>
+  <div id="feed" role="log" aria-live="polite" aria-label="Announcements in your language"><p class="empty">You are connected. Announcements will appear here in your language.</p></div>
 </div>
 
 <footer>Encrypted in transit. Content never stored. <a href="/security">Security</a></footer>
@@ -67,6 +67,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const code = new URLSearchParams(location.search).get('code');
+let LANGINFO = {};
 let kind = 'person', signMode = false;
 
 async function boot(){
@@ -75,16 +76,22 @@ async function boot(){
   if (!r.ok){ $('signin').innerHTML = '<h1>Language Layer</h1><p class="tag">That event was not found. It may have ended, or the server restarted. Ask your host for a fresh link.</p>'; return; }
   const d = await r.json();
   $('evname').textContent = d.name;
-  $('lang').innerHTML = d.languages.map(l => `<option value="${l.tag}">${l.name}</option>`).join('');
+  LANGINFO = {}; d.languages.forEach(l => LANGINFO[l.tag] = l);
+  $('lang').innerHTML = d.languages.map(l => `<option value="${l.tag}">${l.name}${l.voice ? '' : ' (text)'}</option>`).join('');
   $('lang').value = 'en';
   $('fmt').innerHTML = d.formats.filter(f => f.kind !== 'sign')
     .map(f => `<option value="${f.kind}">${f.label}</option>`).join('');
   $('lang').onchange = () => {
-    signMode = $('lang').value === 'asl';
+    const info = LANGINFO[$('lang').value] || {};
+    signMode = info.tier === 'sign';
     $('fmt').disabled = signMode;
-    if (signMode) $('fmt').innerHTML = '<option value="sign">Sign language (text gloss for now)</option>';
-    else $('fmt').innerHTML = 'captions,simplified,speech'.split(',').map(k =>
-      `<option value="${k}">${k==='captions'?'Captions':k==='simplified'?'Plain language':'Spoken audio'}</option>`).join('');
+    if (signMode){ $('fmt').innerHTML = '<option value="sign">Sign language (text gloss for now)</option>'; return; }
+    const opts = [`<option value="captions">Captions</option>`,
+                  `<option value="simplified">Plain language</option>`];
+    opts.push(info.voice
+      ? `<option value="speech">Spoken audio</option>`
+      : `<option value="speech">Spoken audio (no device voice yet, shows captions)</option>`);
+    $('fmt').innerHTML = opts.join('');
   };
 }
 function setKind(k){ kind = k;
@@ -106,14 +113,21 @@ async function join(){
   $('prefs').textContent = ' · ' + $('lang').selectedOptions[0].text + ' · ' + ($('fmt').selectedOptions[0]?.text || 'Sign language (text gloss for now)');
   connect(d.endpoint_id);
 }
-const VOICE_LANG = {en:'en-US', es:'es-MX', fr:'fr-FR', it:'it-IT', pt:'pt-BR',
-  ru:'ru-RU', ar:'ar-SA', bn:'bn-BD', zh:'zh-CN'};
+const VOICE_LANG = {en:'en-US', es:'es-MX', fr:'fr-FR', it:'it-IT', pt:'pt-BR', ru:'ru-RU',
+  ar:'ar-SA', zh:'zh-CN', de:'de-DE', ja:'ja-JP', ko:'ko-KR', hi:'hi-IN', nl:'nl-NL',
+  tr:'tr-TR', pl:'pl-PL', th:'th-TH', vi:'vi-VN', el:'el-GR', cs:'cs-CZ', da:'da-DK',
+  fi:'fi-FI', hu:'hu-HU', id:'id-ID', nb:'nb-NO', ro:'ro-RO', sv:'sv-SE', uk:'uk-UA', he:'he-IL'};
 function speak(text, lang){
-  if (!('speechSynthesis' in window)) return;
+  if (!('speechSynthesis' in window)) return false;
+  const target = VOICE_LANG[lang] || lang;
+  const voices = speechSynthesis.getVoices();
+  const match = voices.find(v => v.lang.toLowerCase().startsWith(target.split('-')[0].toLowerCase()));
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = VOICE_LANG[lang] || 'en-US';
+  u.lang = match ? match.lang : target;
+  if (match) u.voice = match;
   speechSynthesis.cancel();
   speechSynthesis.speak(u);
+  return !!match || voices.length === 0; // empty list = voices not loaded yet, try anyway
 }
 function connect(endpointId){
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -129,7 +143,8 @@ function connect(endpointId){
     b.className = 'bubble' + (a.priority_class === 'emergency' ? ' emergency' : '');
     b.innerHTML = `<div dir="auto">${clean}</div><div class="meta">${a.e2e_ms} ms${a.modality==='speech' ? ' &middot; tap to replay audio' : ''}</div>`;
     if (a.modality === 'speech'){
-      speak(clean, a.language);
+      const spoke = speak(clean, a.language);
+      if (!spoke) b.querySelector('.meta').innerHTML += ' &middot; no device voice for this language, showing text';
       b.style.cursor = 'pointer';
       b.onclick = () => speak(clean, a.language);
     }
