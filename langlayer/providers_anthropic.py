@@ -28,6 +28,8 @@ class AnthropicProvider(Provider):
     async def render(self, plan: DeliveryPlan, event: ContentEvent) -> Artifact:
         if not self.api_key:
             raise ProviderError("no API key configured")
+        if not (event.payload or "").strip():
+            raise ProviderError("template event with no free text; cache only")
         instruction = INSTRUCTIONS[plan.modality].format(
             lang=LANGUAGE_NAMES.get(plan.language, plan.language))
         try:

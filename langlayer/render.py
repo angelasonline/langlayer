@@ -37,7 +37,10 @@ async def execute_plan(plan: DeliveryPlan, event: ContentEvent,
             continue
         remaining_ms = plan.e2e_budget_ms - (time.monotonic() - start) * 1000
         # Each attempt may use the remaining budget; TTFO budget bounds the first try.
-        timeout_s = max(min(remaining_ms, plan.ttfo_budget_ms * 2), 50) / 1000
+        # Floor of 4s per attempt when the class budget allows it: flagship
+        # models routinely exceed 2x TTFO on non streaming APIs. Emergency
+        # stays fast because remaining_ms caps the attempt.
+        timeout_s = max(min(remaining_ms, max(plan.ttfo_budget_ms * 2, 4000)), 50) / 1000
         try:
             artifact = await asyncio.wait_for(provider.render(plan, event), timeout_s)
             provider.circuit.record_success()

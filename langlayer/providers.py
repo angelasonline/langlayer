@@ -164,6 +164,22 @@ class ProviderRegistry:
         return [p.health() for p in self.providers.values()]
 
 
+DEMO_TEMPLATES = {
+    "arrival": {
+        "es-MX": "El tren de la l\u00ednea {line} llega en {min} minutos",
+        "es": "El tren de la l\u00ednea {line} llega en {min} minutos",
+        "asl": "TRAIN {line} ARRIVE {min} MINUTES",
+        "zh": "{line}\u53f7\u7ebf\u5217\u8f66\u5c06\u5728{min}\u5206\u949f\u540e\u5230\u8fbe",
+        "en": "The {line} line train arrives in {min} minutes"},
+    "evacuate": {
+        "es-MX": "EMERGENCIA: evac\u00fae la plataforma por la salida {exit}",
+        "es": "EMERGENCIA: evac\u00fae la plataforma por la salida {exit}",
+        "asl": "EMERGENCY EVACUATE PLATFORM EXIT {exit}",
+        "zh": "\u7d27\u6025\u60c5\u51b5\uff1a\u8bf7\u4ece{exit}\u51fa\u53e3\u64a4\u79bb\u7ad9\u53f0",
+        "en": "EMERGENCY: evacuate the platform via exit {exit}"},
+}
+
+
 def default_registry() -> ProviderRegistry:
     import os
     r = ProviderRegistry()
@@ -185,7 +201,10 @@ def default_registry() -> ProviderRegistry:
         r.register(SimulatedAIRealtime("ai-realtime", base_latency_ms=180, quality=0.93))
         r.register(SimulatedAIRealtime("ai-realtime-alt", base_latency_ms=260, quality=0.90))
     r.register(SimulatedAIRealtime("ai-batch", base_latency_ms=250, quality=0.95))
-    r.register(CacheProvider())
+    cache = CacheProvider()
+    for tpl, translations in DEMO_TEMPLATES.items():
+        cache.preload(tpl, translations)
+    r.register(cache)
     r.register(HumanBridgeSim())
     r.register(PAPassthrough())
     return r

@@ -36,9 +36,9 @@ class Switch(BaseModel):
 
 
 DEMO_RIDERS = [
-    ("Marisol", ["es-MX"], [Modality.speech, Modality.captions], {"audio_out", "text_out"}),
-    ("Devon", ["asl", "en"], [Modality.sign, Modality.captions], {"video_out", "text_out"}),
-    ("Ana", ["en"], [Modality.simplified], {"text_out"}),
+    ("Monica", ["es"], [Modality.speech, Modality.captions], {"audio_out", "text_out"}),
+    ("Sandi", ["asl", "en"], [Modality.sign, Modality.captions], {"video_out", "text_out"}),
+    ("Nate", ["zh", "en"], [Modality.simplified, Modality.captions], {"text_out"}),
 ]
 
 
