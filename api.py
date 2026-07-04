@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (FastAPI, File, HTTPException, UploadFile, WebSocket,
+                     WebSocketDisconnect)
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -377,6 +378,41 @@ def security_page() -> str:
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard_page() -> str:
     return _page("dashboard.html")
+
+
+@app.post("/v1/channels/{cid}/speak")
+async def speak_event(cid: str, priority_class: str = "announcement",
+                      audio: UploadFile = File(...)) -> dict:
+    """Push-to-talk: transcribe host speech, then fan out like a typed announcement."""
+    if cid not in store.channels:
+        _404("channel")
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(400, "Voice input requires live mode (OPENAI_API_KEY not set)")
+    data = await audio.read()
+    if len(data) < 200:
+        raise HTTPException(400, "No audio captured. Hold the button while speaking.")
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                files={"file": (audio.filename or "speech.webm", data,
+                                 audio.content_type or "audio/webm")},
+                data={"model": "whisper-1"})
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Transcription failed: {exc}")
+    if resp.status_code != 200:
+        raise HTTPException(502, f"Transcription failed ({resp.status_code})")
+    text = resp.json().get("text", "").strip()
+    if not text:
+        raise HTTPException(400, "Could not hear anything in that recording.")
+    event = ContentEvent(channel_id=cid, priority_class=PriorityClass(priority_class),
+                         payload=text)
+    result = await ingest_event(cid, event)
+    result["transcript"] = text
+    return result
 
 
 @app.post("/v1/routes/preview")
