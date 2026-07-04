@@ -105,8 +105,8 @@ class PriorityClass(str, Enum):
 # Latency budgets (ms): time-to-first-output, end-to-end. Spec §2.1.
 LATENCY_BUDGETS = {
     PriorityClass.emergency: (900, 2000),
-    PriorityClass.conversational: (300, 5000),  # interim: non-streaming adapters; restore 1000 with streaming
-    PriorityClass.live: (1500, 5000),
+    PriorityClass.conversational: (300, 8000),  # interim: flagship non streaming latency; restore 1000 with streaming
+    PriorityClass.live: (1500, 8000),
     PriorityClass.announcement: (2000, 4000),
     PriorityClass.static: (300, 300),
 }

@@ -20,8 +20,8 @@ from .providers import Provider, ProviderError
 API_URL = "https://api.openai.com/v1/chat/completions"
 
 RULES = (" Preserve the exact meaning. Never add information, explanations, greetings, or"
-         " commentary. If the input is a single word or already suitable, return it as is."
-         " Output only the result, nothing else.")
+         " commentary. Always produce the output in the target language, even if the input"
+         " is a single word. Output only the result, nothing else.")
 
 INSTRUCTIONS = {
     Modality.translation: "Translate the announcement into {lang}." + RULES,
@@ -29,7 +29,7 @@ INSTRUCTIONS = {
     Modality.speech: "Translate the announcement into {lang} for text-to-speech delivery." + RULES,
     Modality.sign: ("Render the announcement as {lang} sign-language gloss, the uppercase gloss"
                     " notation a sign-synthesis engine consumes." + RULES),
-    Modality.simplified: ("Rewrite the announcement in {lang} following plain-language standards:"
+    Modality.simplified: ("Translate the announcement into {lang}, rewritten to plain-language standards:"
                           " short sentences, one idea per sentence, common everyday words, active voice."
                           + RULES),
     Modality.audio_description: "Write a brief {lang} audio description of the announcement." + RULES,
