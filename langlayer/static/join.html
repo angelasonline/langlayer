@@ -82,7 +82,7 @@ async function boot(){
   $('lang').onchange = () => {
     signMode = $('lang').value === 'asl';
     $('fmt').disabled = signMode;
-    if (signMode) $('fmt').innerHTML = '<option value="sign">Sign language</option>';
+    if (signMode) $('fmt').innerHTML = '<option value="sign">Sign language (text gloss for now)</option>';
     else $('fmt').innerHTML = 'captions,simplified,speech'.split(',').map(k =>
       `<option value="${k}">${k==='captions'?'Captions':k==='simplified'?'Plain language':'Spoken audio'}</option>`).join('');
   };
@@ -103,8 +103,17 @@ async function join(){
   $('signin').style.display = 'none';
   $('feedwrap').style.display = 'flex';
   $('who').textContent = name;
-  $('prefs').textContent = ' · ' + $('lang').selectedOptions[0].text + ' · ' + ($('fmt').selectedOptions[0]?.text || 'Sign language');
+  $('prefs').textContent = ' · ' + $('lang').selectedOptions[0].text + ' · ' + ($('fmt').selectedOptions[0]?.text || 'Sign language (text gloss for now)');
   connect(d.endpoint_id);
+}
+const VOICE_LANG = {en:'en-US', es:'es-MX', fr:'fr-FR', it:'it-IT', pt:'pt-BR',
+  ru:'ru-RU', ar:'ar-SA', bn:'bn-BD', zh:'zh-CN'};
+function speak(text, lang){
+  if (!('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = VOICE_LANG[lang] || 'en-US';
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
 }
 function connect(endpointId){
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -115,9 +124,15 @@ function connect(endpointId){
     const a = JSON.parse(ev.data);
     if (!a.delivered) return;
     $('feed').querySelector('.empty')?.remove();
+    const clean = a.content.replace(/^\[[^\]]*\]\s*/, '');
     const b = document.createElement('div');
     b.className = 'bubble' + (a.priority_class === 'emergency' ? ' emergency' : '');
-    b.innerHTML = `<div dir="auto">${a.content}</div><div class="meta">${a.e2e_ms} ms</div>`;
+    b.innerHTML = `<div dir="auto">${clean}</div><div class="meta">${a.e2e_ms} ms${a.modality==='speech' ? ' &middot; tap to replay audio' : ''}</div>`;
+    if (a.modality === 'speech'){
+      speak(clean, a.language);
+      b.style.cursor = 'pointer';
+      b.onclick = () => speak(clean, a.language);
+    }
     $('feed').appendChild(b);
     $('feed').scrollTop = $('feed').scrollHeight;
     if (navigator.vibrate && a.priority_class === 'emergency') navigator.vibrate([180,80,180]);

@@ -34,7 +34,7 @@ LANGUAGE_NAMES = dict(LANGUAGES)
 
 MODALITY_LABELS = {
     "speech": "Spoken audio",
-    "sign": "Sign language",
+    "sign": "Sign language (text gloss for now)",
     "captions": "Captions",
     "translation": "Text",
     "audio_description": "Audio description",
