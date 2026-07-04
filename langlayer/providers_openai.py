@@ -14,19 +14,25 @@ import os
 
 import httpx
 
-from .models import Artifact, ContentEvent, DeliveryPlan, Modality
+from .models import LANGUAGE_NAMES, Artifact, ContentEvent, DeliveryPlan, Modality
 from .providers import Provider, ProviderError
 
 API_URL = "https://api.openai.com/v1/chat/completions"
 
+RULES = (" Preserve the exact meaning. Never add information, explanations, greetings, or"
+         " commentary. If the input is a single word or already suitable, return it as is."
+         " Output only the result, nothing else.")
+
 INSTRUCTIONS = {
-    Modality.translation: "Translate the announcement into {lang}. Output only the translation.",
-    Modality.captions: "Translate the announcement into {lang} as concise captions. Output only the caption text.",
-    Modality.speech: "Translate the announcement into {lang} for text-to-speech delivery. Output only the translation.",
-    Modality.sign: ("Render the announcement as {lang} sign-language gloss "
-                    "(uppercase gloss notation a sign-synthesis engine consumes). Output only the gloss."),
-    Modality.simplified: "Rewrite the announcement in {lang} at a 5th-grade reading level. Output only the rewrite.",
-    Modality.audio_description: "Write a brief {lang} audio description of the announcement. Output only the description.",
+    Modality.translation: "Translate the announcement into {lang}." + RULES,
+    Modality.captions: "Translate the announcement into {lang} as concise captions." + RULES,
+    Modality.speech: "Translate the announcement into {lang} for text-to-speech delivery." + RULES,
+    Modality.sign: ("Render the announcement as {lang} sign-language gloss, the uppercase gloss"
+                    " notation a sign-synthesis engine consumes." + RULES),
+    Modality.simplified: ("Rewrite the announcement in {lang} following plain-language standards:"
+                          " short sentences, one idea per sentence, common everyday words, active voice."
+                          + RULES),
+    Modality.audio_description: "Write a brief {lang} audio description of the announcement." + RULES,
 }
 
 
@@ -41,7 +47,7 @@ class OpenAIProvider(Provider):
     async def render(self, plan: DeliveryPlan, event: ContentEvent) -> Artifact:
         if not self.api_key:
             raise ProviderError("no API key configured")
-        instruction = INSTRUCTIONS[plan.modality].format(lang=plan.language)
+        instruction = INSTRUCTIONS[plan.modality].format(lang=LANGUAGE_NAMES.get(plan.language, plan.language))
         try:
             async with httpx.AsyncClient(timeout=plan.e2e_budget_ms / 1000) as client:
                 resp = await client.post(

@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Language Layer — operations</title>
+<title>Language Layer: Operations</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  :root{--ink:#23204F;--ink2:#37336E;--ink3:#4A4590;--accent:#E8622C;
-    --ok:#4ADE80;--warn:#FBBF24;--bad:#F87171;--lav:#BDB9DE;--line:#3E3A7A}
+  :root{--ink:#FFFFFF;--ink2:#FFFFFF;--ink3:#DDDDDD;--accent:#111111;
+    --ok:#1E7F4F;--warn:#8a5a00;--bad:#B3261E;--lav:#555555;--line:#DDDDDD}
   *{box-sizing:border-box;margin:0}
-  body{background:var(--ink);color:#fff;font-family:'IBM Plex Sans',system-ui,sans-serif;padding:1.2rem 1.6rem}
+  body{background:#fff;color:#111;font-family:'IBM Plex Sans',system-ui,sans-serif;padding:1.2rem 1.6rem}
   h1{font-family:'Space Grotesk';font-size:1.05rem;letter-spacing:.12em;font-weight:700}
-  h1 b{color:var(--accent)}
+  h1 b{color:#111}
   .sub{color:var(--lav);font-size:.8rem;margin:.2rem 0 1.1rem}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.9rem;margin-bottom:1.2rem}
-  .card{background:var(--ink2);border-radius:12px;padding:.9rem 1rem}
+  .card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:.9rem 1rem}
   .card .label{font-size:.7rem;color:var(--lav);letter-spacing:.08em;text-transform:uppercase}
   .card .value{font-family:'Space Grotesk';font-size:1.9rem;font-weight:700;font-variant-numeric:tabular-nums}
   .card .value.good{color:var(--ok)} .card .value.warn{color:var(--warn)} .card .value.bad{color:var(--bad)}
@@ -23,16 +23,16 @@
   th{color:var(--lav);text-align:left;font-weight:600;padding:.35rem .5rem;border-bottom:1px solid var(--line)}
   td{padding:.4rem .5rem;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
   .pill{border-radius:999px;padding:.1rem .55rem;font-size:.72rem;font-weight:600}
-  .pill.closed{background:#123B26;color:var(--ok)} .pill.open{background:#3E1412;color:var(--bad)}
-  .pill.half_open{background:#3B2E10;color:var(--warn)}
+  .pill.closed{background:#E7F3EC;color:var(--ok)} .pill.open{background:#FBEAE9;color:var(--bad)}
+  .pill.half_open{background:#FAEEDA;color:var(--warn)}
   .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)} .mut{color:var(--lav)}
   .grid2{display:grid;grid-template-columns:1fr 2fr;gap:1.4rem}
   @media(max-width:900px){.grid2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<h1>LANGUAGE <b>LAYER</b> · OPERATIONS</h1>
-<p class="sub">Every number on this page derives from signed delivery receipts. Refreshes every 2s.</p>
+<h1>LANGUAGE <b>LAYER</b>: OPERATIONS</h1>
+<p class="sub">Every number on this page derives from signed delivery receipts. Refreshes every 2 seconds.</p>
 
 <div class="cards">
   <div class="card"><div class="label">Deliveries</div><div class="value" id="c-del">–</div></div>
@@ -51,6 +51,9 @@
     <tbody id="prov"></tbody></table>
   </section>
   <section>
+    <h2>Attendee log (all events)</h2>
+    <table><thead><tr><th>Name</th><th>Type</th><th>Event</th><th>Language</th><th>Joined</th></tr></thead>
+    <tbody id="att"></tbody></table>
     <h2>Live receipts</h2>
     <table><thead><tr><th>Rider</th><th>Lang · modality</th><th>Class</th><th>Source</th>
       <th>e2e</th><th>QE</th><th>SLA</th><th>Sig</th></tr></thead>
@@ -85,11 +88,17 @@ async function tick(){
       <td><span class="pill ${p.circuit}">${p.circuit.replace('_',' ')}</span></td>
       <td>${p.p95_ttfo_ms ?? '–'}${p.p95_ttfo_ms !== null ? ' ms' : ''}</td></tr>`).join('');
 
+    try{
+      const evs = await (await fetch('/v1/attendance')).json();
+      document.getElementById('att').innerHTML = evs.map(a => `<tr><td>${a.name}</td>
+        <td>${a.kind}</td><td>${a.event}</td><td>${a.language}</td>
+        <td>${new Date(a.joined_ms).toLocaleTimeString()}</td></tr>`).join('');
+    }catch(e){}
     const rs = await (await fetch('/v1/receipts?limit=14')).json();
     $('rcp').innerHTML = rs.map(r => `<tr>
       <td>${r.rider}</td><td class="mut">${r.language} · ${r.modality}</td>
       <td class="mut">${r.class}</td>
-      <td class="${r.failovers ? 'warn' : ''}">${r.source ?? '—'}${r.failovers ? ' ×' + r.failovers : ''}</td>
+      <td class="${r.failovers ? 'warn' : ''}">${r.source ?? 'none'}${r.failovers ? ' x' + r.failovers : ''}</td>
       <td>${r.e2e_ms ?? '–'} ms</td><td>${r.quality ?? '–'}</td>
       <td class="${r.sla_met ? 'ok' : 'bad'}">${r.sla_met ? '✓' : '✗'}</td>
       <td class="mut">${r.signature}</td></tr>`).join('');

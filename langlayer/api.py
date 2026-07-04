@@ -10,17 +10,26 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from .delivery import hub
-from .models import (Channel, ContentEvent, ContextOverride, Endpoint,
-                     LanguagePref, Modality, ModalityPref, PreferenceSet,
-                     PresenceSession, PriorityClass, Profile, Venue, now_ms)
+from .models import (LANGUAGES, MODALITY_LABELS, Channel, ContentEvent,
+                     ContextOverride, Endpoint, LanguagePref, Modality,
+                     ModalityPref, PreferenceSet, PresenceSession,
+                     PriorityClass, Profile, Venue, now_ms)
 from .providers import default_registry
 from .render import metrics, process_event
 from .routing import route
 from .store import Store
 
-app = FastAPI(title="Language Layer — reference implementation", version="0.1")
+app = FastAPI(title="Language Layer", version="0.2")
 store = Store()
 registry = default_registry()
+
+import os
+import secrets
+
+HOST_INVITE_CODE = os.environ.get("HOST_INVITE_CODE", "letmein")
+COST_PER_DELIVERY_USD = 0.0009  # rough gpt-4o-mini estimate per short announcement
+store.events_by_code = {}
+store.attendance = []
 
 
 @app.post("/v1/profiles")
@@ -108,8 +117,128 @@ async def ingest_event(cid: str, event: ContentEvent) -> dict:
             "e2e_ms": r.e2e_ms, "sla_met": r.sla_met, "quality": r.quality,
             "priority_class": plan.priority_class.value,
             "decisions": plan.decisions})
+    for r in receipts:
+        if r.artifact_id and r.artifact_id in store.artifacts:
+            store.artifacts[r.artifact_id].content = "[content not retained]"
     return {"event_id": event.id, "plans": len(receipts),
             "receipts": [r.model_dump() for r in receipts]}
+
+
+class CreateEvent(BaseModel):
+    name: str
+    invite_code: str
+
+
+@app.post("/v1/events")
+def create_event(req: CreateEvent) -> dict:
+    if req.invite_code != HOST_INVITE_CODE:
+        raise HTTPException(403, "invalid invite code")
+    venue = Venue(name=req.name)
+    store.venues[venue.id] = venue
+    chan = Channel(venue_id=venue.id, name="announcements")
+    store.channels[chan.id] = chan
+    code = "LL-" + secrets.token_hex(2).upper()
+    store.events_by_code[code] = {"name": req.name, "venue_id": venue.id,
+                                  "channel_id": chan.id, "created_ms": now_ms()}
+    store.log("host", "event_created", code)
+    return {"access_code": code, "name": req.name,
+            "attendee_link": f"/join?code={code}", "host_link": f"/console?code={code}"}
+
+
+def _event(code: str) -> dict:
+    ev = store.events_by_code.get(code)
+    if not ev:
+        raise HTTPException(404, "event not found")
+    return ev
+
+
+@app.get("/v1/events/{code}")
+def event_info(code: str) -> dict:
+    ev = _event(code)
+    return {"access_code": code, "name": ev["name"], "channel_id": ev["channel_id"],
+            "languages": [{"tag": t, "name": n} for t, n in LANGUAGES],
+            "formats": [{"kind": k, "label": v} for k, v in MODALITY_LABELS.items()
+                        if k in ("captions", "simplified", "speech", "sign")]}
+
+
+class JoinEvent(BaseModel):
+    kind: str = "person"          # person | business
+    name: str
+    language: str
+    modality: str = "captions"
+
+
+@app.post("/v1/events/{code}/join")
+def join_event(code: str, req: JoinEvent) -> dict:
+    ev = _event(code)
+    mod = Modality.sign if req.language == "asl" else Modality(req.modality)
+    p = Profile(display_name=req.name, preferences=PreferenceSet(
+        languages=[LanguagePref(tag=req.language, rank=1)],
+        modalities=[ModalityPref(kind=mod, rank=1)]))
+    store.profiles[p.id] = p
+    e = Endpoint(profile_id=p.id, kind="mobile",
+                 capabilities={"audio_out", "video_out", "text_out"})
+    store.endpoints[e.id] = e
+    s2 = PresenceSession(profile_id=p.id, endpoint_id=e.id,
+                         attached_to=[f"venue:{ev['venue_id']}"], ttl_seconds=14400)
+    store.presence[s2.id] = s2
+    store.attendance.append({"event": code, "kind": req.kind, "name": req.name,
+                             "language": req.language, "format": mod.value,
+                             "joined_ms": now_ms()})
+    return {"endpoint_id": e.id, "profile_id": p.id, "event_name": ev["name"],
+            "language": req.language, "format": mod.value}
+
+
+@app.get("/v1/events/{code}/attendees")
+def event_attendees(code: str) -> dict:
+    ev = _event(code)
+    live = []
+    for s2 in store.presence.values():
+        if s2.expired or f"venue:{ev['venue_id']}" not in s2.attached_to:
+            continue
+        p = store.profiles.get(s2.profile_id)
+        if p:
+            langs = sorted(p.preferences.languages, key=lambda l: l.rank)
+            live.append({"name": p.display_name,
+                         "language": langs[0].tag if langs else "en"})
+    return {"live": live, "log": [a for a in store.attendance if a["event"] == code]}
+
+
+@app.get("/v1/events/{code}/summary")
+def event_summary(code: str) -> dict:
+    ev = _event(code)
+    plan_ids = {p.id for p in store.plans.values()}
+    rs = [r for r in store.receipts.values()
+          if store.plans.get(r.plan_id)
+          and store.events.get(store.plans[r.plan_id].event_id)
+          and store.events[store.plans[r.plan_id].event_id].channel_id == ev["channel_id"]]
+    delivered = [r for r in rs if r.delivered]
+    langs = {store.plans[r.plan_id].language for r in delivered}
+    return {"deliveries": len(rs), "delivered": len(delivered),
+            "languages": sorted(langs),
+            "estimated_cost_usd": round(len(delivered) * COST_PER_DELIVERY_USD, 4)}
+
+
+@app.get("/v1/events/{code}/transcript")
+def event_transcript(code: str) -> dict:
+    ev = _event(code)
+    items = []
+    for evt in store.events.values():
+        if evt.channel_id != ev["channel_id"]:
+            continue
+        rs = [r for r in store.receipts.values()
+              if store.plans.get(r.plan_id) and store.plans[r.plan_id].event_id == evt.id]
+        items.append({"sent_ms": evt.created_at_ms, "class": evt.priority_class.value,
+                      "source_text": evt.payload or f"[template:{evt.template}]",
+                      "deliveries": [{"to": (store.profiles.get(r.profile_id).display_name
+                                             if store.profiles.get(r.profile_id) else "attendee"),
+                                      "language": store.plans[r.plan_id].language,
+                                      "format": store.plans[r.plan_id].modality.value,
+                                      "delivered": r.delivered, "e2e_ms": r.e2e_ms,
+                                      "sla_met": r.sla_met, "receipt_id": r.id}
+                                     for r in rs]})
+    items.sort(key=lambda i: i["sent_ms"])
+    return {"event": ev["name"], "access_code": code, "announcements": items}
 
 
 @app.websocket("/v1/deliveries/subscribe/{endpoint_id}")
@@ -192,6 +321,11 @@ def demo_riders() -> list[dict]:
     return out
 
 
+@app.get("/v1/attendance")
+def all_attendance() -> list[dict]:
+    return store.attendance[-100:]
+
+
 @app.get("/v1/receipts")
 def list_receipts(limit: int = 25) -> list[dict]:
     items = list(store.receipts.values())[-limit:]
@@ -220,8 +354,24 @@ def demo_page() -> str:
 
 
 @app.get("/rider", response_class=HTMLResponse)
-def rider_page() -> str:
-    return _page("rider.html")
+@app.get("/join", response_class=HTMLResponse)
+def join_page() -> str:
+    return _page("join.html")
+
+
+@app.get("/host", response_class=HTMLResponse)
+def host_page() -> str:
+    return _page("host.html")
+
+
+@app.get("/console", response_class=HTMLResponse)
+def console_page() -> str:
+    return _page("console.html")
+
+
+@app.get("/security", response_class=HTMLResponse)
+def security_page() -> str:
+    return _page("security.html")
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

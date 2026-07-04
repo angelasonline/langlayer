@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Language Layer: Host an Event</title>
+<style>
+  *{box-sizing:border-box;margin:0}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#111;
+    max-width:560px;margin:0 auto;padding:2rem 1.2rem 3rem;line-height:1.5}
+  h1{font-size:1.25rem;font-weight:600}
+  .tag{color:#555;font-size:.9rem;margin:.3rem 0 1.6rem}
+  label{display:block;font-size:.85rem;font-weight:600;margin:1rem 0 .3rem}
+  input{width:100%;padding:.7rem .8rem;font:inherit;border:1px solid #ccc;border-radius:8px;background:#fff;color:#111}
+  input:focus{outline:2px solid #111}
+  button{margin-top:1.2rem;width:100%;padding:.8rem;font:inherit;font-weight:600;
+    background:#111;color:#fff;border:none;border-radius:8px;cursor:pointer}
+  button:hover{background:#000}
+  .err{color:#B3261E;font-size:.85rem;margin-top:.6rem;display:none}
+  #result{display:none;margin-top:1.6rem;border:1px solid #ddd;border-radius:12px;padding:1.2rem}
+  .code{font-size:1.6rem;font-weight:700;letter-spacing:.06em;margin:.2rem 0 1rem}
+  .linkrow{display:flex;gap:.5rem;align-items:center;margin:.5rem 0}
+  .linkrow input{font-size:.82rem;color:#333}
+  .copy{width:auto;margin:0;padding:.55rem .8rem;font-size:.8rem}
+  .lbl{font-size:.8rem;font-weight:600;margin-top:.9rem}
+  #qr{margin:1rem auto 0;width:180px;height:180px}
+  .hint{font-size:.78rem;color:#555;margin-top:.8rem}
+  footer{margin-top:2.5rem;font-size:.75rem;color:#777}
+  footer a{color:#777}
+</style>
+</head>
+<body>
+<h1>Language Layer</h1>
+<p class="tag">Every announcement, in your language, automatically.</p>
+
+<form id="form" onsubmit="return create(event)">
+  <label for="name">Event name</label>
+  <input id="name" required placeholder="e.g. City Council Meeting, Building 4 Lobby">
+  <label for="invite">Host invite code</label>
+  <input id="invite" required placeholder="Provided by your Language Layer contact">
+  <button type="submit">Create event</button>
+  <p class="err" id="err"></p>
+</form>
+
+<div id="result">
+  <div style="font-size:.8rem;color:#555">Access code</div>
+  <div class="code" id="code"></div>
+  <div class="lbl">Attendee link (share this)</div>
+  <div class="linkrow"><input id="alink" readonly><button class="copy" onclick="cp('alink')">Copy</button></div>
+  <div class="lbl">Host link (keep this, it is your console)</div>
+  <div class="linkrow"><input id="hlink" readonly><button class="copy" onclick="cp('hlink')">Copy</button></div>
+  <div class="lbl" style="text-align:center">Attendees can scan to join</div>
+  <div id="qr"></div>
+  <p class="hint">Print or project this QR code. Attendees scan it, choose their language, and announcements arrive on their phone.</p>
+  <button onclick="location.href=document.getElementById('hlink').value">Open host console</button>
+</div>
+
+<footer>Encrypted in transit. Content never stored. <a href="/security">Security</a></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+async function create(e){
+  e.preventDefault();
+  const err = document.getElementById('err'); err.style.display='none';
+  const r = await fetch('/v1/events', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name: document.getElementById('name').value,
+                          invite_code: document.getElementById('invite').value})});
+  if (!r.ok){ err.textContent = r.status===403 ? 'That invite code is not valid.' : 'Something went wrong. Try again.';
+    err.style.display='block'; return false; }
+  const d = await r.json();
+  document.getElementById('form').style.display='none';
+  document.getElementById('result').style.display='block';
+  document.getElementById('code').textContent = d.access_code;
+  const alink = location.origin + d.attendee_link, hlink = location.origin + d.host_link;
+  document.getElementById('alink').value = alink;
+  document.getElementById('hlink').value = hlink;
+  new QRCode(document.getElementById('qr'), {text: alink, width:180, height:180,
+    colorDark:'#111111', colorLight:'#ffffff'});
+  return false;
+}
+function cp(id){ const el=document.getElementById(id); el.select(); document.execCommand('copy'); }
+</script>
+</body>
+</html>

@@ -17,6 +17,31 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
+# Supported languages, alphabetical by English name (tag -> display name)
+LANGUAGES = [
+    ("asl", "American Sign Language"),
+    ("ar", "Arabic"),
+    ("bn", "Bengali"),
+    ("en", "English"),
+    ("fr", "French"),
+    ("it", "Italian"),
+    ("zh", "Mandarin Chinese"),
+    ("pt", "Portuguese"),
+    ("ru", "Russian"),
+    ("es", "Spanish"),
+]
+LANGUAGE_NAMES = dict(LANGUAGES)
+
+MODALITY_LABELS = {
+    "speech": "Spoken audio",
+    "sign": "Sign language",
+    "captions": "Captions",
+    "translation": "Text",
+    "audio_description": "Audio description",
+    "simplified": "Plain language",
+}
+
+
 class Modality(str, Enum):
     speech = "speech"
     sign = "sign"
@@ -37,7 +62,7 @@ class PriorityClass(str, Enum):
 # Latency budgets (ms): time-to-first-output, end-to-end. Spec §2.1.
 LATENCY_BUDGETS = {
     PriorityClass.emergency: (900, 2000),
-    PriorityClass.conversational: (300, 1000),
+    PriorityClass.conversational: (300, 3000),  # interim: non-streaming adapter; restore 1000 with Realtime streaming
     PriorityClass.live: (1500, 3000),
     PriorityClass.announcement: (2000, 4000),
     PriorityClass.static: (300, 300),
