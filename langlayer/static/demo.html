@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Language Layer — live demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#23204F; --ink2:#37336E; --ink3:#4A4590;
+    --paper:#F4F3FB; --card:#FFFFFF; --line:#DDDAF0;
+    --accent:#E8622C; --accent-soft:#FDEDE4;
+    --ok:#1E7F4F; --bad:#B3261E; --muted:#676486; --lav:#BDB9DE;
+  }
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--ink); color:#fff; font-family:'IBM Plex Sans',system-ui,sans-serif; min-height:100vh}
+  header{display:flex; align-items:baseline; gap:1rem; padding:1.1rem 1.6rem .9rem; flex-wrap:wrap}
+  .wordmark{font-family:'Space Grotesk'; font-weight:700; font-size:1.15rem; letter-spacing:.14em}
+  .wordmark b{color:var(--accent)}
+  .tagline{color:var(--lav); font-size:.85rem}
+  .chips{margin-left:auto; display:flex; gap:.5rem; flex-wrap:wrap}
+  .chip{background:var(--ink2); border-radius:999px; padding:.28rem .75rem; font-size:.75rem; color:var(--lav)}
+  .chip b{color:#fff; font-variant-numeric:tabular-nums}
+
+  .console{margin:0 1.6rem 1.2rem; background:var(--ink2); border-radius:14px; padding:1rem 1.1rem; display:grid; gap:.7rem}
+  .row{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center}
+  textarea{flex:1 1 420px; min-height:3.2rem; resize:vertical; background:var(--ink); color:#fff;
+    border:1px solid var(--ink3); border-radius:10px; padding:.6rem .8rem; font:inherit; font-size:.95rem}
+  textarea:focus{outline:2px solid var(--accent)}
+  select,button{font:inherit; border-radius:10px; padding:.55rem .9rem; border:1px solid var(--ink3);
+    background:var(--ink); color:#fff; cursor:pointer}
+  select:focus,button:focus{outline:2px solid var(--accent)}
+  button.primary{background:var(--accent); border-color:var(--accent); font-weight:600}
+  button.primary:hover{filter:brightness(1.08)}
+  button.ghost:hover{background:var(--ink3)}
+  button[aria-pressed="true"]{background:var(--bad); border-color:var(--bad)}
+  .hint{font-size:.75rem; color:var(--lav)}
+
+  .phones{display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:1.2rem; padding:0 1.6rem 1.8rem}
+  .phone{background:var(--paper); color:var(--ink); border-radius:26px; border:6px solid #14122E;
+    min-height:430px; display:flex; flex-direction:column; overflow:hidden;
+    box-shadow:0 14px 34px rgba(0,0,0,.35)}
+  .statusbar{background:var(--card); border-bottom:1px solid var(--line); padding:.65rem .9rem;
+    display:flex; align-items:center; gap:.55rem}
+  .avatar{width:30px; height:30px; border-radius:50%; background:var(--accent); color:#fff;
+    display:grid; place-items:center; font-weight:700; font-family:'Space Grotesk'}
+  .who{font-weight:600; font-size:.92rem}
+  .prefs{font-size:.72rem; color:var(--muted)}
+  .feed{flex:1; padding:.8rem .9rem; display:flex; flex-direction:column; gap:.6rem; overflow-y:auto}
+  .empty{margin:auto; text-align:center; color:var(--muted); font-size:.82rem; max-width:16rem}
+  .bubble{background:var(--card); border:1px solid var(--line); border-radius:14px 14px 14px 4px;
+    padding:.6rem .7rem; font-size:.88rem; line-height:1.35; cursor:pointer; animation:pop .18s ease-out}
+  .bubble.emergency{background:var(--accent-soft); border-color:var(--accent)}
+  .bubble.failed{background:#FBEAE9; border-color:var(--bad); color:var(--bad)}
+  .meta{display:flex; gap:.45rem; flex-wrap:wrap; margin-top:.45rem; font-size:.68rem; color:var(--muted)}
+  .meta .ok{color:var(--ok); font-weight:600}
+  .meta .warn{color:var(--accent); font-weight:600}
+  .meta .err{color:var(--bad); font-weight:600}
+  @keyframes pop{from{transform:translateY(6px); opacity:0} to{transform:none; opacity:1}}
+  @media (prefers-reduced-motion:reduce){.bubble{animation:none}}
+
+  dialog{border:none; border-radius:14px; max-width:34rem; width:92vw; padding:0}
+  dialog::backdrop{background:rgba(20,18,46,.6)}
+  .d-head{background:var(--ink); color:#fff; padding:.8rem 1rem; font-family:'Space Grotesk'; font-weight:700}
+  dialog pre{padding:1rem; font-size:.78rem; overflow:auto; max-height:50vh}
+  .d-close{float:right; background:none; border:none; color:var(--lav); font-size:1rem}
+</style>
+</head>
+<body>
+<header>
+  <span class="wordmark">LANGUAGE <b>LAYER</b></span>
+  <span class="tagline">Language follows your attention — one announcement, three worlds, live.</span>
+  <span class="chips">
+    <span class="chip">providers: <b id="mode">…</b></span>
+    <span class="chip">deliveries: <b id="m-del">0</b></span>
+    <span class="chip">p95 e2e: <b id="m-p95">–</b></span>
+    <span class="chip">SLA met: <b id="m-sla">–</b></span>
+  </span>
+</header>
+
+<section class="console" aria-label="Operator console">
+  <div class="row">
+    <textarea id="msg" placeholder="Type a platform announcement… e.g. Elevator at the north end is out of service today"></textarea>
+  </div>
+  <div class="row">
+    <select id="klass" aria-label="Priority class">
+      <option value="announcement">announcement</option>
+      <option value="conversational">conversational</option>
+      <option value="live">live</option>
+      <option value="emergency">emergency (free text)</option>
+    </select>
+    <button class="primary" id="send">Send announcement</button>
+    <button class="ghost" id="tpl-arrival">Templated: train arriving</button>
+    <button class="ghost" id="tpl-evac">EMERGENCY: evacuate (template)</button>
+    <button class="ghost" id="outage" aria-pressed="false">Simulate primary AI outage</button>
+    <span class="hint">Tap any bubble to see the plan's D1–D6 decision record.</span>
+  </div>
+</section>
+
+<main class="phones" id="phones" aria-live="polite"></main>
+
+<dialog id="dlg">
+  <div class="d-head">Routing decisions <button class="d-close" onclick="dlg.close()" aria-label="Close">✕</button></div>
+  <pre id="dlg-body"></pre>
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+let CHANNEL = null, outageOn = false, riders = [];
+
+async function seed(){
+  const r = await fetch('/v1/demo/seed', {method:'POST'});
+  const d = await r.json();
+  CHANNEL = d.channel_id; riders = d.riders;
+  $('mode').textContent = d.provider_mode;
+  $('phones').innerHTML = '';
+  for (const rd of riders){
+    const el = document.createElement('article');
+    el.className = 'phone';
+    el.innerHTML = `
+      <div class="statusbar">
+        <span class="avatar">${rd.name[0]}</span>
+        <div><div class="who">${rd.name}</div>
+        <div class="prefs">${rd.language} · ${rd.modality.replace('_',' ')}</div></div>
+      </div>
+      <div class="feed" id="feed-${rd.endpoint_id}">
+        <p class="empty">Waiting for the first announcement. ${rd.name} set this preference once — every venue honors it.</p>
+      </div>`;
+    $('phones').appendChild(el);
+    subscribe(rd.endpoint_id);
+  }
+}
+
+function subscribe(endpointId){
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}/v1/deliveries/subscribe/${endpointId}`);
+  ws.onmessage = ev => render(endpointId, JSON.parse(ev.data));
+  ws.onclose = () => setTimeout(() => subscribe(endpointId), 1500);
+  setInterval(() => { if (ws.readyState === 1) ws.send('hb'); }, 30000);
+}
+
+function render(endpointId, a){
+  const feed = $(`feed-${endpointId}`);
+  feed.querySelector('.empty')?.remove();
+  const b = document.createElement('div');
+  b.className = 'bubble' + (a.priority_class === 'emergency' ? ' emergency' : '') + (a.delivered ? '' : ' failed');
+  const badge = a.delivered
+    ? `<span class="${a.failovers ? 'warn' : 'ok'}">${a.source}${a.failovers ? ' · failover ×' + a.failovers : ''}</span>
+       <span>${a.e2e_ms} ms</span>
+       <span class="${a.sla_met ? 'ok' : 'err'}">SLA ${a.sla_met ? '✓' : '✗'}</span>
+       <span>QE ${a.quality}</span>`
+    : `<span class="err">not delivered — ${a.causes.join('; ')}</span>`;
+  b.innerHTML = `${a.delivered ? a.content : 'Delivery failed'}<div class="meta">${badge}</div>`;
+  b.onclick = () => { $('dlg-body').textContent = JSON.stringify(a.decisions, null, 2); dlg.showModal(); };
+  feed.appendChild(b);
+  feed.scrollTop = feed.scrollHeight;
+  refreshMetrics();
+}
+
+async function refreshMetrics(){
+  const m = await (await fetch('/v1/metrics')).json();
+  $('m-del').textContent = m.deliveries;
+  $('m-p95').textContent = m.e2e_ms.p95 === null ? '–' : m.e2e_ms.p95 + ' ms';
+  $('m-sla').textContent = m.sla_met_rate === null ? '–' : Math.round(m.sla_met_rate * 100) + '%';
+}
+
+async function post(body){
+  await fetch(`/v1/channels/${CHANNEL}/events`, {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({channel_id: CHANNEL, ...body})});
+}
+
+$('send').onclick = () => {
+  const text = $('msg').value.trim();
+  if (!text) { $('msg').focus(); return; }
+  post({priority_class: $('klass').value, payload: text});
+  $('msg').value = '';
+};
+$('msg').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); $('send').click(); } };
+$('tpl-arrival').onclick = () => post({priority_class:'announcement', kind:'template_ref',
+  template:'arrival', slots:{line:'Red', min:3}});
+$('tpl-evac').onclick = () => post({priority_class:'emergency', kind:'template_ref',
+  template:'evacuate', slots:{exit:'B'}});
+$('outage').onclick = async e => {
+  outageOn = !outageOn;
+  e.target.setAttribute('aria-pressed', outageOn);
+  e.target.textContent = outageOn ? 'Primary AI is DOWN — send something' : 'Simulate primary AI outage';
+  await fetch(`/v1/demo/outage/ai-realtime?on=${outageOn}`, {method:'POST'});
+};
+
+seed();
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Language Layer — your feed</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#23204F;--ink2:#37336E;--paper:#F4F3FB;--card:#fff;--line:#DDDAF0;
+    --accent:#E8622C;--accent-soft:#FDEDE4;--ok:#1E7F4F;--bad:#B3261E;--muted:#676486;--lav:#BDB9DE}
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;max-width:560px;margin:0 auto}
+  .bar{background:var(--ink);color:#fff;padding:.9rem 1rem;display:flex;align-items:center;gap:.6rem;
+    position:sticky;top:0}
+  .bar .mark{font-family:'Space Grotesk';font-weight:700;letter-spacing:.1em;font-size:.85rem}
+  .bar .mark b{color:var(--accent)}
+  .bar .me{margin-left:auto;font-size:.78rem;color:var(--lav)}
+  .bar .dot{width:9px;height:9px;border-radius:50%;background:var(--bad)}
+  .bar .dot.on{background:#4ADE80}
+  #feed{flex:1;padding:1rem;display:flex;flex-direction:column;gap:.7rem;overflow-y:auto}
+  .empty,.picker{margin:auto;text-align:center;color:var(--muted);font-size:.9rem}
+  .picker button{display:block;width:100%;margin:.5rem 0;padding:.9rem;font:inherit;font-weight:600;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;color:var(--ink);cursor:pointer}
+  .picker button:hover{border-color:var(--accent)}
+  .bubble{background:var(--card);border:1px solid var(--line);border-radius:16px 16px 16px 5px;
+    padding:.8rem .9rem;font-size:1rem;line-height:1.4;animation:pop .18s ease-out}
+  .bubble.emergency{background:var(--accent-soft);border-color:var(--accent);font-weight:600}
+  .meta{margin-top:.45rem;font-size:.7rem;color:var(--muted);display:flex;gap:.5rem;flex-wrap:wrap}
+  .ok{color:var(--ok);font-weight:600}.warn{color:var(--accent);font-weight:600}
+  @keyframes pop{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){.bubble{animation:none}}
+  footer{padding:.6rem 1rem 1rem;font-size:.72rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="mark">LANGUAGE <b>LAYER</b></span>
+  <span class="me" id="me">choose your profile</span>
+  <span class="dot" id="dot" title="connection"></span>
+</div>
+<main id="feed"><div class="picker" id="picker">Loading profiles…</div></main>
+<footer>Your language follows you. Set once — honored everywhere.</footer>
+<script>
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+
+async function boot(){
+  const eid = params.get('endpoint_id');
+  if (eid) return join(eid, params.get('name') || 'You', params.get('prefs') || '');
+  let riders = await (await fetch('/v1/demo/riders')).json();
+  if (!riders.length){
+    await fetch('/v1/demo/seed', {method:'POST'});
+    riders = await (await fetch('/v1/demo/riders')).json();
+  }
+  const p = $('picker');
+  p.innerHTML = '<p>Who are you today?</p>';
+  for (const r of riders){
+    const b = document.createElement('button');
+    b.textContent = `${r.name} — ${r.language} · ${r.modality.replace('_',' ')}`;
+    b.onclick = () => join(r.endpoint_id, r.name, `${r.language} · ${r.modality.replace('_',' ')}`);
+    p.appendChild(b);
+  }
+}
+
+function join(endpointId, name, prefs){
+  $('me').textContent = `${name} · ${prefs}`;
+  $('feed').innerHTML = '<p class="empty">Connected. Announcements will appear here in your language.</p>';
+  connect(endpointId);
+}
+
+function connect(endpointId){
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}/v1/deliveries/subscribe/${endpointId}`);
+  ws.onopen = () => $('dot').classList.add('on');
+  ws.onclose = () => { $('dot').classList.remove('on'); setTimeout(() => connect(endpointId), 1500); };
+  ws.onmessage = ev => {
+    const a = JSON.parse(ev.data);
+    if (!a.delivered) return;
+    $('feed').querySelector('.empty')?.remove();
+    const b = document.createElement('div');
+    b.className = 'bubble' + (a.priority_class === 'emergency' ? ' emergency' : '');
+    b.innerHTML = `${a.content}<div class="meta">
+      <span class="${a.failovers ? 'warn' : 'ok'}">${a.source}</span>
+      <span>${a.e2e_ms} ms</span><span class="ok">SLA ${a.sla_met ? '✓' : '✗'}</span></div>`;
+    $('feed').appendChild(b);
+    $('feed').scrollTop = $('feed').scrollHeight;
+    if (navigator.vibrate && a.priority_class === 'emergency') navigator.vibrate([180,80,180]);
+  };
+  setInterval(() => { if (ws.readyState === 1) ws.send('hb'); }, 30000);
+}
+boot();
+</script>
+</body>
+</html>

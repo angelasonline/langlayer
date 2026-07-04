@@ -1,0 +1,10 @@
+# fly.io: `fly launch --copy-config` from the repo root, then `fly deploy`
+app = "langlayer-demo"
+primary_region = "ord"
+[build]
+  dockerfile = "../Dockerfile"
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
