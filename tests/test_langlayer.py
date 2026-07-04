@@ -47,7 +47,7 @@ def test_routing_decisions_recorded(world):
     assert p.language == "asl" and p.modality == Modality.sign
     assert p.endpoint_id == endpoint.id
     assert set(p.decisions) == {"D1", "D2", "D3", "D4", "D5", "D6"}
-    assert p.ttfo_budget_ms == 300 and p.e2e_budget_ms == 1000
+    assert p.ttfo_budget_ms == 300 and p.e2e_budget_ms == 5000
 
 
 def test_modality_respects_endpoint_capabilities(world):
@@ -193,3 +193,240 @@ def test_rider_dashboard_and_data_endpoints():
     assert {r["name"] for r in riders} >= {"Marisol", "Devon", "Ana"}
     receipts = client.get("/v1/receipts").json()
     assert receipts and receipts[0]["sla_met"] is True and receipts[0]["signature"]
+
+
+def test_event_flow_end_to_end():
+    """Access code -> join -> send -> receipt, attendance, summary, transcript."""
+    from fastapi.testclient import TestClient
+    from langlayer import api as api_mod
+    client = TestClient(api_mod.app)
+
+    bad = client.post("/v1/events", json={"name": "X", "invite_code": "wrong"})
+    assert bad.status_code == 403
+
+    ev = client.post("/v1/events", json={"name": "City Council",
+                                         "invite_code": "letmein"}).json()
+    code = ev["access_code"]
+    assert code.startswith("LL-") and "/join?code=" in ev["attendee_link"]
+
+    info = client.get(f"/v1/events/{code}").json()
+    assert [l["name"] for l in info["languages"]][:3] == [
+        "American Sign Language", "Amharic", "Arabic"]
+    asl = info["languages"][0]
+    assert asl["tier"] == "sign" and asl["voice"] is False
+
+    j = client.post(f"/v1/events/{code}/join",
+                    json={"kind": "business", "name": "Corner Cafe",
+                          "language": "es", "modality": "captions"}).json()
+    j2 = client.post(f"/v1/events/{code}/join",
+                     json={"kind": "person", "name": "Devon",
+                           "language": "asl", "modality": "captions"}).json()
+    assert j2["format"] == "sign"  # ASL forces sign format
+
+    with client.websocket_connect(f"/v1/deliveries/subscribe/{j['endpoint_id']}") as ws:
+        r = client.post(f"/v1/channels/{info['channel_id']}/events",
+                        json={"channel_id": info["channel_id"],
+                              "priority_class": "announcement",
+                              "payload": "The meeting starts in five minutes"})
+        assert r.status_code == 200 and r.json()["plans"] == 2
+        msg = ws.receive_json()
+        assert msg["language"] == "es" and msg["delivered"]
+
+    att = client.get(f"/v1/events/{code}/attendees").json()
+    assert {a["name"] for a in att["log"]} == {"Corner Cafe", "Devon"}
+    summ = client.get(f"/v1/events/{code}/summary").json()
+    assert summ["delivered"] == 2 and summ["estimated_cost_usd"] > 0
+    tr = client.get(f"/v1/events/{code}/transcript").json()
+    assert tr["announcements"][0]["source_text"] == "The meeting starts in five minutes"
+    assert len(tr["announcements"][0]["deliveries"]) == 2
+    # zero retention: artifact content purged after delivery
+    from langlayer import state as _st
+    assert all(a.content == "[content not retained]"
+               for a in _st.store.artifacts.values())
+
+
+def test_new_pages_serve():
+    from fastapi.testclient import TestClient
+    from langlayer import api as api_mod
+    client = TestClient(api_mod.app)
+    for path in ("/host", "/join", "/console", "/security", "/demo", "/dashboard"):
+        resp = client.get(path)
+        assert resp.status_code == 200, path
+        assert "\u2014" not in resp.text, f"em dash found in {path}"
+
+
+def test_speak_endpoint_requires_live_mode(monkeypatch):
+    import os
+    from fastapi.testclient import TestClient
+    from langlayer import api as api_mod
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    client = TestClient(api_mod.app)
+    seed = client.post("/v1/demo/seed").json()
+    r = client.post(f"/v1/channels/{seed['channel_id']}/speak",
+                    files={"audio": ("s.webm", b"x" * 500, "audio/webm")})
+    assert r.status_code == 400 and "live mode" in r.json()["detail"]
+
+
+def test_sign_label_is_honest():
+    from fastapi.testclient import TestClient
+    from langlayer import api as api_mod
+    client = TestClient(api_mod.app)
+    ev = client.post("/v1/events", json={"name": "T", "invite_code": "letmein"}).json()
+    info = client.get(f"/v1/events/{ev['access_code']}").json()
+    sign = next(f for f in info["formats"] if f["kind"] == "sign")
+    assert "gloss" in sign["label"]
+
+
+def test_coverage_and_homepage():
+    from fastapi.testclient import TestClient
+    from langlayer import api as api_mod
+    client = TestClient(api_mod.app)
+    cov = client.get("/v1/coverage").json()
+    assert len(cov["languages"]) == 46
+    names = [l["name"] for l in cov["languages"]]
+    assert names == sorted(names)
+    ar = next(l for l in cov["languages"] if l["tag"] == "ar")
+    assert ar["rtl"] is True
+    assert client.get("/").status_code == 200
+    assert client.get("/coverage").status_code == 200
+    assert "\u2014" not in client.get("/").text
+    assert "\u2014" not in client.get("/coverage").text
+
+
+def test_anthropic_provider_wiring(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    from langlayer.providers import default_registry
+    r = default_registry()
+    assert type(r.get("ai-realtime")).__name__ == "AnthropicProvider"
+    assert r.get("ai-realtime").model == "claude-fable-5"
+
+
+def test_human_bridge_label_is_honest(world):
+    import asyncio
+    from langlayer.models import ContentEvent, PriorityClass
+    from langlayer.render import process_event
+    store, registry, venue, chan, *_ = world
+    registry.get("ai-realtime").forced_outage = True
+    registry.get("ai-realtime-alt").forced_outage = True
+    ev = ContentEvent(channel_id=chan.id, priority_class=PriorityClass.conversational,
+                      payload="hello")
+    r = asyncio.run(process_event(ev, store, registry))[0]
+    assert r.source_used == "human-bridge"
+    art = store.artifacts[r.artifact_id]
+    assert "integration pending" in art.content
+
+
+def test_durability_survives_restart(tmp_path):
+    """Space, join, and receipts survive a full process restart (new Store)."""
+    import asyncio
+    from langlayer.models import ContentEvent, PriorityClass
+    from langlayer.providers import default_registry
+    from langlayer.render import process_event
+    from langlayer.store import Store
+
+    db = f"sqlite:///{tmp_path}/prod.db"
+    from langlayer import api as api_mod
+    from fastapi.testclient import TestClient
+
+    from langlayer import state
+    old_store = state.store
+    try:
+        state.store = Store(db_url=db)
+        client = TestClient(api_mod.app)
+        ev = client.post("/v1/events", json={"name": "Community Night",
+                                             "invite_code": "letmein"}).json()
+        code = ev["access_code"]
+        j = client.post(f"/v1/events/{code}/join",
+                        json={"kind": "person", "name": "Maria",
+                              "language": "es", "modality": "captions"}).json()
+        info = client.get(f"/v1/events/{code}").json()
+        client.post(f"/v1/channels/{info['channel_id']}/events",
+                    json={"channel_id": info["channel_id"],
+                          "priority_class": "announcement", "payload": "hello"})
+
+        # ---- simulate restart: brand new store from the same database ----
+        state.store = Store(db_url=db)
+        assert code in state.store.events_by_code
+        assert any(a["name"] == "Maria" for a in state.store.attendance)
+        assert len(state.store.receipts) >= 1
+        # attendee reconnects: websocket revives presence, deliveries resume
+        with client.websocket_connect(f"/v1/deliveries/subscribe/{j['endpoint_id']}") as ws:
+            r = client.post(f"/v1/channels/{info['channel_id']}/events",
+                            json={"channel_id": info["channel_id"],
+                                  "priority_class": "announcement",
+                                  "payload": "after the restart"})
+            assert r.json()["plans"] == 1
+            msg = ws.receive_json()
+            assert msg["delivered"] and msg["language"] == "es"
+        tr = client.get(f"/v1/events/{code}/transcript").json()
+        assert len(tr["announcements"]) == 2  # both survive, pre and post restart
+    finally:
+        state.store = old_store
+
+
+def test_fanout_renders_once_per_language(world):
+    """50 attendees sharing a language cost one model call, 50 receipts."""
+    import asyncio
+    from langlayer.models import (ContentEvent, Endpoint, LanguagePref, Modality,
+                                  ModalityPref, PreferenceSet, PresenceSession,
+                                  PriorityClass, Profile)
+    from langlayer.render import process_event
+    store, registry, venue, chan, *_ = world
+    for i in range(50):
+        p = Profile(display_name=f"a{i}", preferences=PreferenceSet(
+            languages=[LanguagePref(tag="es", rank=1)],
+            modalities=[ModalityPref(kind=Modality.captions, rank=1)]))
+        store.profiles[p.id] = p
+        e = Endpoint(profile_id=p.id, capabilities={"text_out"})
+        store.endpoints[e.id] = e
+        s = PresenceSession(profile_id=p.id, endpoint_id=e.id,
+                            attached_to=[f"venue:{venue.id}"])
+        store.presence[s.id] = s
+
+    prov = registry.get("ai-realtime")
+    calls = {"n": 0}
+    orig = prov.render
+    async def counting(plan, event):
+        calls["n"] += 1
+        return await orig(plan, event)
+    prov.render = counting
+
+    ev = ContentEvent(channel_id=chan.id, priority_class=PriorityClass.announcement,
+                      payload="One message, many people")
+    receipts = asyncio.run(process_event(ev, store, registry))
+    es_receipts = [r for r in receipts if store.plans[r.plan_id].language == "es"]
+    assert len(es_receipts) == 50
+    assert all(r.delivered and r.signature for r in es_receipts)
+    assert calls["n"] <= 3  # one per (language x modality) group, not per person
+
+
+def test_rate_limit_blocks_flood():
+    from fastapi.testclient import TestClient
+    from langlayer import api as api_mod
+    from langlayer import ratelimit
+    ratelimit._buckets.clear()
+    client = TestClient(api_mod.app)
+    codes = [client.post("/v1/events", json={"name": f"s{i}",
+                                             "invite_code": "letmein"}).status_code
+             for i in range(8)]
+    assert codes[:5] == [200] * 5 and 429 in codes[5:]
+    ratelimit._buckets.clear()
+
+
+def test_quality_judge_parser():
+    from langlayer.quality import _parse
+    assert _parse("0.92") == 0.92
+    assert _parse("Score: 0.85") == 0.85
+    assert _parse("1.0") == 1.0
+    assert _parse("no number here") is None
+
+
+def test_interpreter_contract_shapes():
+    from langlayer.interpreter_bridge import (DispatchClient, InterpreterAssignment,
+                                              InterpreterRequest, SessionReport)
+    req = InterpreterRequest(request_id="r1", space_name="Clinic", source_language="en",
+                             target_language="asl", modality="sign",
+                             priority_class="conversational", compliance_mode="hipaa",
+                             context_summary="clinic lobby", max_wait_seconds=60)
+    assert req.compliance_mode == "hipaa"
