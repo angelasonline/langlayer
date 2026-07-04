@@ -1,74 +1,66 @@
-# Language Layer — reference implementation
+# Language Layer
 
-Working backend for the Language Layer spec (`language-layer-spec.md`): the routing
-engine (decisions D1–D6), provider source chains with automatic failover and circuit
-breakers, delivery receipts signed and SLA-evaluated (D7), presence with TTL expiry,
-live language/modality switching, GDPR erasure, and metrics derived entirely from
-receipts.
+Language access, turned on like Wi-Fi. A space (a school, clinic, transit
+line, or event) posts one QR code; everyone in it receives every announcement
+in their own language and format: text, plain language, or spoken aloud.
+No app, no account. Ask once, understood always.
 
-## Run it
+**Live:** https://langlayer.onrender.com
 
-```bash
-pip install fastapi uvicorn pytest httpx
+## What it does
 
-python demo.py                      # CLI end-to-end transit scenario
-python prove.py                     # generates PROOF-REPORT.md (evidence run)
-python -m pytest tests/ -q          # 12 tests (incl. HTTP+WebSocket end-to-end)
-uvicorn langlayer.api:app --reload  # then open http://localhost:8000/demo
-```
+- 46 languages including American Sign Language (text gloss today) and
+  Plain Language, with honest per-language capability flags (`/coverage`)
+- Spaces with access codes: host console, attendee QR join, live attendee log
+- Voice in (push-to-talk transcription) and spoken audio out (device voices,
+  with captions fallback where no voice exists)
+- Multi-provider AI translation: Anthropic Claude primary and OpenAI failover
+  when both keys are set; automatic failover chains with circuit breakers
+- A signed delivery receipt for every message: latency, source, SLA result,
+  and a measured quality score (LLM-as-judge, scored after delivery)
+- Durable storage (Postgres via DATABASE_URL, SQLite fallback): spaces,
+  attendees, transcripts, and receipts survive restarts; attendees reconnect
+  automatically
+- Emergency priority class served from deterministic templates, never
+  waiting on a model
+- Per-IP rate limiting, exportable event transcripts, per-space cost meter
+- Human interpreter dispatch: architecture complete
+  (`langlayer/interpreter_bridge.py`); live interpreter network integration
+  pending
 
-## The live demo (the thing you show OpenAI)
+## Run it locally
 
-Three URLs once the server is up:
+    pip install -r requirements.txt pytest
+    python -m pytest tests/ -q          # 25 tests
+    uvicorn langlayer.api:app --reload  # then open http://localhost:8000
 
-- `/demo` — operator console + three live phones (the pitch itself)
-- `/rider` — standalone mobile endpoint: open it on an actual phone, pick a
-  profile, and announcements arrive in that person's language (emergency
-  deliveries vibrate). Deep-linkable: `/rider?endpoint_id=...`
-- `/dashboard` — live operations: receipt-derived metrics, provider health
-  with circuit states, and a rolling table of signed receipts
+Pages: `/` home, `/host` create a space, `/join?code=...` attendee,
+`/console?code=...` host console, `/demo` three-persona walkthrough,
+`/dashboard` operations, `/coverage` language capability map, `/healthz`.
 
-`/demo` is an operator console and three live "phones"
-(Marisol: es-MX speech · Devon: ASL · Ana: simplified English). Type any
-announcement and watch it arrive on all three simultaneously, each in that
-person's language and modality, with source/latency/SLA badges per delivery.
-Buttons fire the templated arrival, the emergency evacuation (deterministic
-template outranks live AI), and a primary-AI outage toggle so the audience can
-watch failover happen in the receipts. Tap any bubble to see that delivery's
-full D1–D6 decision record.
+Environment: `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` (live translation
+and quality judging; simulated without), `DATABASE_URL` (Postgres),
+`HOST_INVITE_CODE` (gates space creation), `SENTRY_DSN` (optional).
 
-**Real models:** `export OPENAI_API_KEY=sk-...` before starting and the registry
-swaps the simulated AI providers for live OpenAI calls (`providers_openai.py`) —
-same adapter contract, zero engine changes. Without a key everything runs
-simulated, so the demo works offline too (recommended backup for the meeting).
+## Verify the claims
 
-The demo puts three riders with different profiles (Spanish speech, ASL sign video,
-simplified-English captions) on one transit platform, then runs: a templated
-announcement (cache-first, ~0 ms), a free-text announcement (AI realtime), the same
-during a forced primary-AI outage (automatic failover, recorded in receipts), and an
-emergency evacuation (deterministic template outranks live AI by policy). It ends by
-printing one plan's full D1–D6 decision record and the platform metrics.
+    python demo.py       # CLI end-to-end scenario
+    python prove.py      # writes PROOF-REPORT.md
+    python loadtest.py --users 500   # against a running server
+
+Load result on 1 CPU: 500 concurrent attendees, 100% of deliveries,
+sub-second median fan-out. Operational envelope and production setup:
+`deploy/PRODUCTION.md`. Accessibility posture: `ACCESSIBILITY.md`.
+Pilot playbook: `PILOT-KIT.md`.
 
 ## Layout
 
-```
-langlayer/models.py     data models, latency budgets, default source chains
-langlayer/routing.py    the decision engine (pure, auditable)
-langlayer/providers.py  provider adapter contract, simulated providers, circuit breaker
-langlayer/render.py     failover execution, signed receipts, SLA, metrics
-langlayer/store.py            storage (in-memory; Postgres-interface-compatible)
-langlayer/api.py              FastAPI surface + WS delivery + /demo page
-langlayer/providers_openai.py real OpenAI adapter (auto-enabled via OPENAI_API_KEY)
-langlayer/delivery.py         WebSocket delivery hub
-langlayer/static/demo.html    the live pitch demo UI
-demo.py, prove.py, tests/, deploy/ (Dockerfile, compose, Fly, Render), PILOT-KIT.md
-```
-
-## What's simulated vs. real
-
-Real: every decision, the failover machinery, circuit breakers, budgets, receipts,
-signatures, SLA evaluation, metrics, erasure. Simulated: the providers — each is a
-stub behind the exact adapter contract (`render(plan, event) -> Artifact`) the
-production OpenAI Realtime adapter implements, so swapping in real models touches
-`providers.py` only, never the engine. Streaming ingest/delivery (WebSocket/WebRTC)
-and durable storage are Phase 1 per the spec's build plan.
+    langlayer/routers/    API split: spaces, core delivery, pages
+    langlayer/routing.py  the decision engine (pure, auditable, D1-D6)
+    langlayer/render.py   render-once fan-out, receipts, SLA, metrics
+    langlayer/providers*.py  provider contract, Anthropic + OpenAI adapters
+    langlayer/store.py    write-through durable storage + migrations
+    langlayer/quality.py  post-delivery quality judging
+    langlayer/ratelimit.py, delivery.py, state.py, interpreter_bridge.py
+    langlayer/static/     the product UI
+    tests/, deploy/, loadtest.py, prove.py
