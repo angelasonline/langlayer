@@ -58,3 +58,20 @@ async def warm() -> dict:
     await _a.gather(ping("ai-realtime", "primary"), ping("ai-realtime-alt", "alt"))
     return results
 
+# ---- Keep-alive: the system never sleeps between demos ----
+import asyncio as _aio
+import contextlib as _ctx
+
+_KEEPALIVE_MINUTES = 10
+
+async def _keepalive_loop():
+    # First warm immediately on boot, then every N minutes.
+    while True:
+        with _ctx.suppress(Exception):
+            await warm()
+        await _aio.sleep(_KEEPALIVE_MINUTES * 60)
+
+@app.on_event("startup")
+async def _start_keepalive():
+    _aio.create_task(_keepalive_loop())
+
