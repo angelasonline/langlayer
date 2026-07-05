@@ -5,54 +5,61 @@
 <title>Language Layer: Join</title>
 <style>
   *{box-sizing:border-box;margin:0}
-  body{font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#111;
-    max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding:1.4rem 1.2rem 1rem;line-height:1.5}
-  h1{font-size:1.15rem;font-weight:600}
-  .tag{color:#555;font-size:.85rem;margin:.2rem 0 1.2rem}
-  label{display:block;font-size:.85rem;font-weight:600;margin:.9rem 0 .3rem}
-  input,select{width:100%;padding:.7rem .8rem;font:inherit;border:1px solid #ccc;border-radius:8px;background:#fff;color:#111}
-  input:focus,select:focus{outline:2px solid #111}
-  .seg{display:flex;border:1px solid #ccc;border-radius:8px;overflow:hidden}
-  .seg button{flex:1;padding:.65rem;font:inherit;background:#fff;color:#111;border:none;cursor:pointer}
-  .seg button[aria-pressed="true"]{background:#111;color:#fff}
-  .go{margin-top:1.3rem;width:100%;padding:.8rem;font:inherit;font-weight:600;background:#111;color:#fff;border:none;border-radius:8px;cursor:pointer}
-  .err{color:#B3261E;font-size:.85rem;margin-top:.6rem;display:none}
-  #feedwrap{display:none;flex:1;flex-direction:column}
-  .bar{display:flex;align-items:center;gap:.5rem;padding:.6rem 0;border-bottom:1px solid #eee;font-size:.85rem}
-  .dot{width:9px;height:9px;border-radius:50%;background:#B3261E;margin-left:auto}
+  body{font-family:Arial,Helvetica,sans-serif;background:#0F3532;color:#1B1F1E;line-height:1.5;
+    min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;padding:1.25rem 1rem 0.75rem}
+  a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #7FC4BC;outline-offset:2px}
+
+  /* White card on dark teal (option 10b) */
+  #signin{margin:auto;width:100%;max-width:480px;background:#fff;color:#1B1F1E;
+    border-radius:16px;padding:30px 24px 28px;box-shadow:0 8px 22px rgba(0,0,0,0.25)}
+  h1{font-size:1.35rem;font-weight:700;letter-spacing:-0.01em;color:#0F3532}
+  .tag{color:#3C4341;font-size:.95rem;margin:.4rem 0 1rem}
+  #evname{font-size:.95rem;font-weight:700;color:#20635B}
+  label{display:block;font-size:.9rem;font-weight:700;margin:1rem 0 .35rem;color:#1B1F1E}
+  input,select{width:100%;padding:.8rem .85rem;font:inherit;border:1.5px solid #C9C9C2;border-radius:10px;
+    background:#fff;color:#1B1F1E;min-height:48px}
+  input:focus,select:focus{outline:3px solid #297F75;outline-offset:2px;border-color:#297F75}
+  ::placeholder{color:#5F6663}
+  .seg{display:flex;border:1.5px solid #C9C9C2;border-radius:10px;overflow:hidden}
+  .seg button{flex:1;padding:.75rem .5rem;font:inherit;font-weight:700;background:#fff;color:#0F3532;
+    border:none;cursor:pointer;min-height:48px}
+  .seg button[aria-pressed="true"]{background:#0F3532;color:#fff}
+  .seg button:focus-visible{outline:3px solid #297F75;outline-offset:-3px}
+  .go{margin-top:1.4rem;width:100%;padding:.9rem;font:inherit;font-size:1.05rem;font-weight:700;
+    background:#0F3532;color:#fff;border:none;border-radius:10px;cursor:pointer;min-height:52px}
+  .go:focus-visible{outline:3px solid #297F75;outline-offset:2px}
+  .err{color:#B3261E;font-size:.9rem;font-weight:700;margin-top:.6rem;display:none}
+
+  /* Empty state QR hint */
+  .qrhint{width:64px;height:64px;background:#EFF6F5;border-radius:16px;margin:0 auto 18px;
+    display:flex;align-items:center;justify-content:center}
+  .qrhint span{width:30px;height:30px;background:repeating-conic-gradient(#0F3532 0 25%,#EFF6F5 0 50%);background-size:10px 10px}
+  #signin.center{text-align:center}
+
+  /* Feed state */
+  #feedwrap{display:none;flex:1;flex-direction:column;width:100%;max-width:560px;margin:0 auto;
+    background:#fff;border-radius:16px;padding:14px 16px}
+  .bar{display:flex;align-items:center;gap:.5rem;padding:.7rem .9rem;font-size:.9rem;
+    background:#EFF6F5;border-radius:12px;color:#123F3A}
+  .bar strong{color:#0F3532}
+  .dot{width:10px;height:10px;border-radius:50%;background:#B3261E;margin-left:auto;flex-shrink:0}
   .dot.on{background:#1E7F4F}
   #feed{flex:1;padding:1rem 0;display:flex;flex-direction:column;gap:.6rem;overflow-y:auto}
-  .empty{margin:auto;text-align:center;color:#595959;font-size:.85rem;max-width:17rem}
-  .bubble{border:1px solid #ddd;border-radius:12px;padding:.75rem .85rem;font-size:1rem;animation:pop .18s ease-out}
-  .bubble.emergency{border-color:#B3261E;background:#FBEAE9;font-weight:600}
-  .meta{margin-top:.4rem;font-size:.68rem;color:#595959}
+  .empty{margin:auto;text-align:center;color:#3C4341;font-size:.9rem;max-width:17rem}
+  .bubble{background:#fff;border:1px solid #DDE4E2;border-radius:12px;padding:.8rem .9rem;font-size:1.05rem;animation:pop .18s ease-out}
+  .bubble.emergency{border-color:#B3261E;background:#FDECEA;font-weight:700}
+  .meta{margin-top:.4rem;font-size:.72rem;color:#4A514F}
   @keyframes pop{from{transform:translateY(6px);opacity:0}to{transform:none;opacity:1}}
   @media (prefers-reduced-motion:reduce){.bubble{animation:none}}
-  footer{padding-top:.8rem;font-size:.72rem;color:#595959;text-align:center}
-  footer a{color:#595959}
 
-/* Language Layer design system (matches homepage) */
-body{max-width:560px;margin:0 auto;padding:2rem 1.25rem;text-align:left}
-#signin,#room,.notice{margin-left:auto;margin-right:auto}
+  footer{padding:1rem 0 .4rem;font-size:.78rem;color:#C8DBD8;text-align:center}
+  footer a{color:#7FC4BC}
 
-body{font-family:Arial,Helvetica,sans-serif;color:#1B1F1E;background:#fff}
-h1{color:#0F3532;letter-spacing:-0.01em}
-a{color:#297F75}
-a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #297F75;outline-offset:2px}
-button,.btn,input[type=submit]{background:#0F3532;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer}
-button.secondary,.btn.secondary{background:#fff;color:#0F3532;border:1.5px solid #297F75}
-input,select,textarea{border:1.5px solid #C9C9C2;border-radius:10px;font-family:inherit}
-input:focus,select:focus,textarea:focus{border-color:#297F75}
-.tag,.sub{color:#3C4341}
-.chip{border:1.5px solid #297F75;color:#123F3A;border-radius:999px;background:#fff}
-
-#signin,#room{background:#F4F4F1;border-radius:16px;padding:24px}
-h1{font-size:1.5rem}
-.seg button{background:#fff;color:#0F3532;border:1.5px solid #C9C9C2}
-.seg button.active{background:#0F3532;color:#fff;border-color:#0F3532}
-.bubble{background:#fff;border:1px solid #DDE4E2;border-radius:12px}
-.bubble.emergency{background:#FDECEA;border-color:#B3261E}
-
+  @media (min-width:560px){
+    body{padding:2rem 1.5rem 1rem}
+    #signin{padding:36px 32px 32px}
+    h1{font-size:1.5rem}
+  }
 </style>
 </head>
 <body>
@@ -81,7 +88,7 @@ h1{font-size:1.5rem}
 </div>
 
 <div id="feedwrap">
-  <div class="bar"><strong id="who"></strong><span id="prefs" style="color:#555"></span><span class="dot" id="dot"></span></div>
+  <div class="bar"><strong id="who"></strong><span id="prefs" style="color:#123F3A"></span><span class="dot" id="dot"></span></div>
   <div id="feed" role="log" aria-live="polite" aria-label="Announcements in your language"><p class="empty">You are connected. Announcements will appear here in your language.</p></div>
 </div>
 
@@ -94,9 +101,9 @@ let LANGINFO = {};
 let kind = 'person', signMode = false;
 
 async function boot(){
-  if (!code){ $('signin').innerHTML = '<h1>Language Layer</h1><p class="tag">This page needs an attendee link from an event host. Ask your host for the link or QR code.</p>'; return; }
+  if (!code){ $('signin').classList.add('center'); $('signin').innerHTML = '<div class="qrhint" aria-hidden="true"><span></span></div><h1>Language Layer</h1><p class="tag">You need an attendee link from an event host. Ask the host for the link or QR code to join.</p>'; return; }
   const r = await fetch(`/v1/events/${code}`);
-  if (!r.ok){ $('signin').innerHTML = '<h1>Language Layer</h1><p class="tag">That event was not found. It may have ended, or the server restarted. Ask your host for a fresh link.</p>'; return; }
+  if (!r.ok){ $('signin').classList.add('center'); $('signin').innerHTML = '<div class="qrhint" aria-hidden="true"><span></span></div><h1>Language Layer</h1><p class="tag">That event was not found. It may have ended, or the server restarted. Ask your host for a fresh link.</p>'; return; }
   const d = await r.json();
   $('evname').textContent = d.name;
   LANGINFO = {}; d.languages.forEach(l => LANGINFO[l.tag] = l);
