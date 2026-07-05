@@ -65,6 +65,25 @@
   .d-head{background:#111; color:#fff; padding:.8rem 1rem; font-family:'Space Grotesk'; font-weight:700}
   dialog pre{padding:1rem; font-size:.78rem; overflow:auto; max-height:50vh}
   .d-close{float:right; background:none; border:none; color:#ccc; font-size:1rem}
+
+/* Language Layer design system (matches homepage) */
+body{font-family:Arial,Helvetica,sans-serif;color:#1B1F1E;background:#fff}
+h1{color:#0F3532;letter-spacing:-0.01em}
+a{color:#297F75}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #297F75;outline-offset:2px}
+button,.btn,input[type=submit]{background:#0F3532;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer}
+button.secondary,.btn.secondary{background:#fff;color:#0F3532;border:1.5px solid #297F75}
+input,select,textarea{border:1.5px solid #C9C9C2;border-radius:10px;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#297F75}
+.tag,.sub{color:#3C4341}
+.chip{border:1.5px solid #297F75;color:#123F3A;border-radius:999px;background:#fff}
+
+header{border-bottom:2px solid #0F3532}
+.wordmark{color:#0F3532}
+.panel{border:2px solid #0F3532;border-radius:16px}
+.bubble{border-radius:12px}
+.controls button{border-radius:10px}
+
 </style>
 </head>
 <body>
@@ -191,5 +210,6 @@ $('outage').onclick = async e => {
 
 seed();
 </script>
+<p style="margin-top:2.5rem;font-size:.8rem;color:#4A514F;text-align:center">Encrypted in transit. Content never stored. <a href="/security">Security</a></p>
 </body>
 </html>

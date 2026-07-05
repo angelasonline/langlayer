@@ -28,6 +28,23 @@
   .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)} .mut{color:var(--lav)}
   .grid2{display:grid;grid-template-columns:1fr 2fr;gap:1.4rem}
   @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+
+/* Language Layer design system (matches homepage) */
+body{font-family:Arial,Helvetica,sans-serif;color:#1B1F1E;background:#fff}
+h1{color:#0F3532;letter-spacing:-0.01em}
+a{color:#297F75}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #297F75;outline-offset:2px}
+button,.btn,input[type=submit]{background:#0F3532;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer}
+button.secondary,.btn.secondary{background:#fff;color:#0F3532;border:1.5px solid #297F75}
+input,select,textarea{border:1.5px solid #C9C9C2;border-radius:10px;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#297F75}
+.tag,.sub{color:#3C4341}
+.chip{border:1.5px solid #297F75;color:#123F3A;border-radius:999px;background:#fff}
+
+.card{background:#F4F4F1;border-radius:16px;border:none}
+.card .value{color:#0F3532}
+h1{font-size:1.5rem}
+
 </style>
 </head>
 <body>
@@ -106,5 +123,6 @@ async function tick(){
 }
 tick(); setInterval(tick, 2000);
 </script>
+<p style="margin-top:2.5rem;font-size:.8rem;color:#4A514F;text-align:center">Encrypted in transit. Content never stored. <a href="/security">Security</a></p>
 </body>
 </html>
