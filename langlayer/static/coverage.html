@@ -5,56 +5,69 @@
 <title>Language Layer: Coverage</title>
 <style>
   *{box-sizing:border-box;margin:0}
-  body{font-family:system-ui,-apple-system,sans-serif;background:#fff;color:#111;
-    max-width:760px;margin:0 auto;padding:2rem 1.2rem 3rem;line-height:1.5}
-  h1{font-size:1.25rem;font-weight:700}
-  .sub{color:#555;font-size:.92rem;margin:.3rem 0 1.4rem}
+  body{font-family:Arial,Helvetica,sans-serif;background:#0F3532;color:#1B1F1E;line-height:1.5;
+    min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
+    max-width:820px;margin:0 auto;padding:0 1rem 0.75rem}
+  a:focus-visible{outline:3px solid #7FC4BC;outline-offset:2px}
+
+  header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem;padding:1.1rem 0}
+  .brand{color:#fff;font-size:.85rem;font-weight:700;letter-spacing:.12em}
+  nav{display:flex;gap:1.4rem}
+  nav a{color:#C8DBD8;text-decoration:none;font-size:.9rem;padding:.6rem 0;min-height:44px;display:inline-flex;align-items:center}
+  nav a:hover{color:#fff;text-decoration:underline}
+
+  h1{color:#fff;font-size:1.6rem;font-weight:700;letter-spacing:-0.01em;margin-top:.4rem}
+  .sub{color:#C8DBD8;font-size:.92rem;margin:.6rem 0 1.4rem;line-height:1.6}
+
+  .tablecard{background:#fff;border-radius:16px 16px 0 0;padding:.4rem 1rem .2rem;overflow-x:auto}
   table{width:100%;border-collapse:collapse;font-size:.88rem}
-  th{text-align:left;color:#555;font-weight:600;padding:.4rem .5rem;border-bottom:1px solid #ddd;
+  th{text-align:left;color:#5F6663;font-weight:700;padding:.6rem .5rem;border-bottom:1.5px solid #E6E6E1;
     position:sticky;top:0;background:#fff}
-  td{padding:.45rem .5rem;border-bottom:1px solid #eee}
-  .ok{color:#1E7F4F;font-weight:600}
-  .no{color:#6b6b6b}
-  .pill{border-radius:999px;padding:.08rem .55rem;font-size:.72rem;font-weight:600}
-  .strong{background:#E7F3EC;color:#1E7F4F}
-  .emerging{background:#F5F5F5;color:#555}
-  .sign{background:#FBEAE9;color:#B3261E}
-  .notes{margin-top:1.6rem;border:1px solid #ddd;border-radius:12px;padding:1rem 1.2rem;font-size:.88rem;color:#333}
-  .notes p{margin:.4rem 0}
-  .notes b{color:#111}
-  a{color:#111}
-  footer{margin-top:2rem;font-size:.78rem;color:#595959}
+  td{padding:.55rem .5rem;border-bottom:1px solid #F0F0ED}
+  tr:last-child td{border-bottom:none}
+  .ok{color:#1E7F4F;font-weight:700}
+  .no{color:#5F6663}
+  /* 12d: available mark rendered as a teal square, CSS only */
+  td.ok:not(.txt){font-size:0;line-height:0}
+  td.ok:not(.txt)::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;background:#297F75}
+  .pill{border-radius:999px;padding:.15rem .6rem;font-size:.72rem;font-weight:700;white-space:nowrap}
+  .strong{background:#E4F1EE;color:#1E7F4F}
+  .emerging{background:#F4F4F1;color:#4A514F}
+  .sign{background:#FDECEA;color:#B3261E}
 
-/* Language Layer design system (matches homepage) */
-body{font-family:Arial,Helvetica,sans-serif;color:#1B1F1E;background:#fff}
-h1{color:#0F3532;letter-spacing:-0.01em}
-a{color:#297F75}
-a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #297F75;outline-offset:2px}
-button,.btn,input[type=submit]{background:#0F3532;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer}
-button.secondary,.btn.secondary{background:#fff;color:#0F3532;border:1.5px solid #297F75}
-input,select,textarea{border:1.5px solid #C9C9C2;border-radius:10px;font-family:inherit}
-input:focus,select:focus,textarea:focus{border-color:#297F75}
-.tag,.sub{color:#3C4341}
-.chip{border:1.5px solid #297F75;color:#123F3A;border-radius:999px;background:#fff}
+  .notes{background:#EFF6F5;border-radius:0 0 16px 16px;padding:1rem 1.1rem;font-size:.88rem;color:#123F3A;
+    display:flex;flex-direction:column;gap:.55rem}
+  .notes p{margin:0;line-height:1.6}
+  .notes b{color:#0F3532}
+  .notes a{color:#20635B}
+  a{color:#7FC4BC}
 
-h1{font-size:1.7rem}
-th{color:#5F6663;font-weight:700}
-tr{border-color:#E6E6E1}
-.pill{border-radius:999px;font-weight:700}
-.pill.strong{background:#E4F1EE;color:#1E7F4F}
-.pill.emerging{background:#F4F4F1;color:#5F6663}
-.pill.gloss{background:#FDECEA;color:#B3261E}
+  footer{margin-top:auto;padding:1.1rem 0 .4rem;font-size:.78rem;color:#C8DBD8;text-align:center}
+  footer a{color:#7FC4BC}
 
+  @media (min-width:560px){
+    body{padding:0 1.5rem 1rem}
+    h1{font-size:1.9rem}
+    .tablecard{padding:.4rem 1.3rem .3rem}
+    .notes{padding:1.1rem 1.4rem}
+  }
 </style>
 </head>
 <body>
+<header>
+  <span class="brand">LANGUAGE LAYER</span>
+  <nav><a href="/">Home</a><a href="/security">Security</a></nav>
+</header>
+
 <h1>Language coverage, transparently</h1>
 <p class="sub">Translations are produced by Claude Fable 5 (Anthropic) with automatic backup from GPT-4o (OpenAI), two of the most capable AI systems available. This page shows plainly what those systems can and cannot deliver as of July 5, 2026. Every delivery is checked by a second AI and scored for translation quality. The table below shows each language's coverage: text, spoken audio, and model quality.</p>
 
+<div class="tablecard">
 <table>
   <thead><tr><th>Language</th><th>Text</th><th>Spoken aloud</th><th>Model quality</th></tr></thead>
   <tbody id="rows"></tbody>
 </table>
+</div>
 
 <div class="notes">
   <p><b>Text:</b> available in every listed language. After delivery, each translation is scored by a second AI: Claude (Anthropic) translates, and an OpenAI model reviews it, comparing the translation to the original and scoring how much of the meaning survived, from 0 to 1. Low scores are flagged on the delivery record.</p>
@@ -63,16 +76,16 @@ tr{border-color:#E6E6E1}
   <p><b>Emerging:</b> works today; have a human linguist SME verify important messages.</p>
 </div>
 
-<footer><a href="/">Language Layer</a> · Encrypted in transit. Content never stored.</footer>
+<footer>Encrypted in transit. Content never stored. <a href="/security">Security</a></footer>
 
 <script>
 (async () => {
   const d = await (await fetch('/v1/coverage')).json();
   document.getElementById('rows').innerHTML = d.languages.map(l => `
     <tr>
-      <td dir="auto">${l.name}${l.rtl ? ' <span style="color:#6b6b6b;font-size:.75em">(right to left)</span>' : ''}</td>
-      <td class="ok">${l.tier === 'sign' ? 'gloss' : '\u2713'}</td>
-      <td class="${l.voice ? 'ok' : 'no'}">${l.voice ? '\u2713' : 'captions fallback'}</td>
+      <td dir="auto">${l.name}${l.rtl ? ' <span style="color:#5F6663;font-size:.75em">(right to left)</span>' : ''}</td>
+      <td class="ok${l.tier === 'sign' ? ' txt' : ''}" aria-label="${l.tier === 'sign' ? 'gloss' : 'yes'}">${l.tier === 'sign' ? 'gloss' : '\u2713'}</td>
+      <td class="${l.voice ? 'ok' : 'no'}" aria-label="${l.voice ? 'yes' : 'captions fallback'}">${l.voice ? '\u2713' : 'captions fallback'}</td>
       <td><span class="pill ${l.tier}">${l.tier === 'sign' ? 'gloss only today' : l.tier}</span></td>
     </tr>`).join('');
 })();
