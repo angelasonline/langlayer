@@ -475,3 +475,32 @@ def test_last_tier_delivers_late_instead_of_failing(world):
     assert r.delivered, r.failover_causes
     assert r.source_used == "human-bridge"
     assert r.failovers == 2
+
+
+def test_sign_chain_exhaustion_falls_back_to_captions(world):
+    import asyncio
+    from langlayer.models import (Channel, ContentEvent, Endpoint, LanguagePref,
+                                  Modality, ModalityPref, PreferenceSet,
+                                  PresenceSession, PriorityClass, Profile)
+    from langlayer.render import process_event
+    store, registry, venue, chan, *_ = world
+    p = Profile(display_name="SignUser", preferences=PreferenceSet(
+        languages=[LanguagePref(tag="asl", rank=1)],
+        modalities=[ModalityPref(kind=Modality.sign, rank=1)]))
+    store.profiles[p.id] = p
+    e = Endpoint(profile_id=p.id, capabilities={"video_out", "text_out"})
+    store.endpoints[e.id] = e
+    s = PresenceSession(profile_id=p.id, endpoint_id=e.id,
+                        attached_to=[f"venue:{venue.id}"])
+    store.presence[s.id] = s
+    registry.get("ai-realtime").forced_outage = True
+    registry.get("ai-realtime-alt").forced_outage = True
+    hb = registry.get("human-bridge")
+    for _ in range(3):
+        hb.circuit.record_failure()  # open the circuit: D5 routes around it
+    ev = ContentEvent(channel_id=chan.id, priority_class=PriorityClass.live,
+                      payload="Doors open at seven")
+    recs = asyncio.run(process_event(ev, store, registry))
+    rec = next(r for r in recs if r.profile_id == p.id)
+    assert rec.delivered and rec.source_used == "captions-fallback"
+    assert "sign video: no capable source" in " ".join(rec.failover_causes)
