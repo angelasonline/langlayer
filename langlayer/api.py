@@ -30,3 +30,31 @@ def __getattr__(name):
     if name in ("store", "registry", "hub"):
         return getattr(state, name)
     raise AttributeError(name)
+
+@app.get("/v1/warm")
+async def warm() -> dict:
+    """Wake the database and both AI providers so first real message is fast."""
+    import asyncio as _a
+    results = {"db": False, "primary": False, "alt": False}
+    try:
+        _ = len(state.store.venues); results["db"] = True
+    except Exception:
+        pass
+    async def ping(name, key):
+        p = state.registry.get(name)
+        if p is None or not getattr(p, "api_key", None):
+            return
+        try:
+            from .models import ContentEvent, DeliveryPlan, Modality, PriorityClass, SourceStep
+            ev = ContentEvent(channel_id="warm", priority_class=PriorityClass.announcement, payload="hello")
+            plan = DeliveryPlan(profile_id="warm", endpoint_id="warm", language="es",
+                                modality=Modality.captions, priority_class=PriorityClass.announcement,
+                                source_chain=[SourceStep(provider=name)], ttfo_budget_ms=4000,
+                                e2e_budget_ms=8000, reasons=[])
+            await _a.wait_for(p.render(plan, ev), timeout=8)
+            results[key] = True
+        except Exception:
+            pass
+    await _a.gather(ping("ai-realtime", "primary"), ping("ai-realtime-alt", "alt"))
+    return results
+
