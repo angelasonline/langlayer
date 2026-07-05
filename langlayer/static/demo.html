@@ -103,17 +103,9 @@ header{border-bottom:2px solid #0F3532}
     <textarea id="msg" placeholder="Type a platform announcement… e.g. Elevator at the north end is out of service today"></textarea>
   </div>
   <div class="row">
-    <select id="klass" aria-label="Priority class">
-      <option value="announcement">announcement</option>
-      <option value="conversational">conversational</option>
-      <option value="live">live</option>
-      <option value="emergency">emergency (free text)</option>
-    </select>
     <button class="primary" id="send">Send announcement</button>
-    <button class="ghost" id="tpl-arrival">Templated: train arriving</button>
-    <button class="ghost" id="tpl-evac">EMERGENCY: evacuate (template)</button>
-    <button class="ghost" id="outage" aria-pressed="false">Simulate primary AI outage</button>
-    <span class="hint">Tap any bubble to see the plan's D1–D6 decision record.</span>
+    <button class="ghost" id="tpl-arrival">Try a sample announcement</button>
+    <span class="hint">Tap any message to view its delivery record.</span>
   </div>
 </section>
 
@@ -126,7 +118,6 @@ header{border-bottom:2px solid #0F3532}
 
 <script>
 const $ = id => document.getElementById(id);
-let CHANNEL = null, outageOn = false, riders = [];
 
 async function seed(){
   const r = await fetch('/v1/demo/seed', {method:'POST'});
@@ -203,30 +194,15 @@ async function post(body){
 $('send').onclick = () => {
   const text = $('msg').value.trim();
   if (!text) { $('msg').focus(); return; }
-  post({priority_class: $('klass').value, payload: text});
+  post({priority_class: 'announcement', payload: text});
   $('msg').value = '';
 };
 $('msg').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); $('send').click(); } };
 $('tpl-arrival').onclick = () => post({priority_class:'announcement', kind:'template_ref',
   template:'arrival', slots:{line:'Red', min:3}});
-$('tpl-evac').onclick = () => post({priority_class:'emergency', kind:'template_ref',
-  template:'evacuate', slots:{exit:'B'}});
-$('outage').onclick = async e => {
-  outageOn = !outageOn;
-  e.target.setAttribute('aria-pressed', outageOn);
-  e.target.textContent = outageOn ? 'Primary AI is DOWN. Send something' : 'Simulate primary AI outage';
-  await fetch(`/v1/demo/outage/ai-realtime?on=${outageOn}`, {method:'POST'});
-};
 
 seed();
 
-/* Enter sends; Shift+Enter makes a newline */
-(function(){
-  const box = document.querySelector('textarea');
-  if (box) box.addEventListener('keydown', function(e){
-    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
-  });
-})();
 
 fetch('/v1/warm').catch(()=>{}); // wake db + AI providers so first send is fast
 </script>
