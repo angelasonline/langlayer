@@ -22,6 +22,19 @@ def _sign(receipt: DeliveryReceipt) -> str:
     return hmac.new(SIGNING_KEY, canonical, hashlib.sha256).hexdigest()
 
 
+# Traffic cop: at most 2 concurrent calls per AI provider. Bursts queue
+# predictably instead of all starving against provider rate limits.
+_PROVIDER_LIMITS: dict[tuple, asyncio.Semaphore] = {}
+
+def _limiter(name: str) -> asyncio.Semaphore:
+    # Keyed per event loop: semaphores cannot outlive the loop they were
+    # created in (tests and workers each run their own loop).
+    key = (id(asyncio.get_running_loop()), name)
+    if key not in _PROVIDER_LIMITS:
+        _PROVIDER_LIMITS[key] = asyncio.Semaphore(2)
+    return _PROVIDER_LIMITS[key]
+
+
 async def execute_plan(plan: DeliveryPlan, event: ContentEvent,
                        registry: ProviderRegistry, store: Store) -> DeliveryReceipt:
     """Walk the source chain (W7). Budget exhaustion is failure -> next source."""
@@ -42,7 +55,11 @@ async def execute_plan(plan: DeliveryPlan, event: ContentEvent,
         # stays fast because remaining_ms caps the attempt.
         timeout_s = max(min(remaining_ms, max(plan.ttfo_budget_ms * 2, 4000)), 50) / 1000
         try:
-            artifact = await asyncio.wait_for(provider.render(plan, event), timeout_s)
+            if step.provider.startswith("ai-"):
+                async with _limiter(step.provider):
+                    artifact = await asyncio.wait_for(provider.render(plan, event), timeout_s)
+            else:
+                artifact = await asyncio.wait_for(provider.render(plan, event), timeout_s)
             provider.circuit.record_success()
             provider.latencies_ms.append(int((time.monotonic() - start) * 1000))
             break
@@ -110,6 +127,20 @@ async def process_event(event: ContentEvent, store: Store,
 
     async def run_group(members: list[DeliveryPlan]) -> list[DeliveryReceipt]:
         lead = await execute_plan(members[0], event, registry, store)
+        if not lead.delivered and event.priority_class.value != "emergency":
+            # Zero-fail policy: one automatic retry with a fresh budget.
+            # Worst case becomes delivered late with the miss recorded
+            # honestly, never silence.
+            first_causes = list(lead.failover_causes)
+            retry = await execute_plan(members[0], event, registry, store)
+            if retry.delivered:
+                retry.failover_causes = first_causes + ["automatic retry after exhaustion"] + retry.failover_causes
+                retry.failovers += lead.failovers
+                if "delivered on retry" not in retry.sla_violations:
+                    retry.sla_violations.append("delivered on retry")
+                retry.sla_met = False
+                retry.signature = _sign(retry)
+                lead = retry
         if not lead.delivered and members[0].modality == Modality.sign:
             # Sign chain exhausted: deliver source text as captions rather
             # than nothing, with an honest cause on the receipt.
@@ -164,6 +195,7 @@ async def process_event(event: ContentEvent, store: Store,
     from .quality import judge, live_judging_available
     if live_judging_available() and event.payload:
         async def _score():
+            await asyncio.sleep(2)  # yield to any in-flight live sends first
             done: dict[tuple, float] = {}
             for grp in groups.values():
                 lead = grp[0]
