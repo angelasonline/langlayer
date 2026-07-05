@@ -9,7 +9,7 @@ import json
 import time
 
 from .models import (Artifact, ContentEvent, DeliveryPlan, DeliveryReceipt,
-                     now_ms)
+                     Modality, now_ms)
 from .providers import CacheMiss, ProviderError, ProviderRegistry
 from .store import Store
 
@@ -110,6 +110,19 @@ async def process_event(event: ContentEvent, store: Store,
 
     async def run_group(members: list[DeliveryPlan]) -> list[DeliveryReceipt]:
         lead = await execute_plan(members[0], event, registry, store)
+        if not lead.delivered and members[0].modality == Modality.sign:
+            # Sign chain exhausted: deliver source text as captions rather
+            # than nothing, with an honest cause on the receipt.
+            fb = Artifact(plan_id=members[0].id, modality=Modality.captions,
+                          language=members[0].language,
+                          content=f"[sign video unavailable; captions fallback] {event.payload or ''}".strip(),
+                          provider="captions-fallback", quality_estimate=0.5)
+            store.artifacts[fb.id] = fb
+            lead.artifact_id = fb.id
+            lead.delivered = True
+            lead.source_used = "captions-fallback"
+            lead.failover_causes.insert(0, "sign video: no capable source; delivered as captions fallback")
+            lead.signature = _sign(lead)
         out = [lead]
         lead_artifact = store.artifacts.get(lead.artifact_id) if lead.artifact_id else None
         for p in members[1:]:
