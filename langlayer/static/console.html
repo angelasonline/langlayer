@@ -28,6 +28,24 @@
   .msg .meta{font-size:.7rem;color:#595959;margin-top:.3rem}
   footer{margin-top:2.2rem;font-size:.75rem;color:#595959}
   footer a{color:#595959}
+
+/* Language Layer design system (matches homepage) */
+body{font-family:Arial,Helvetica,sans-serif;color:#1B1F1E;background:#fff}
+h1{color:#0F3532;letter-spacing:-0.01em}
+a{color:#297F75}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #297F75;outline-offset:2px}
+button,.btn,input[type=submit]{background:#0F3532;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer}
+button.secondary,.btn.secondary{background:#fff;color:#0F3532;border:1.5px solid #297F75}
+input,select,textarea{border:1.5px solid #C9C9C2;border-radius:10px;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#297F75}
+.tag,.sub{color:#3C4341}
+.chip{border:1.5px solid #297F75;color:#123F3A;border-radius:999px;background:#fff}
+
+h1{font-size:1.5rem}
+textarea{background:#fff}
+.sent .item{background:#F4F4F1;border-radius:12px;border:none}
+.log th{color:#5F6663}
+
 </style>
 </head>
 <body>
@@ -52,6 +70,7 @@
   <button class="primary" onclick="send()">Send announcement</button>
   <button id="ptt" aria-label="Hold to speak an announcement" onmousedown="pttStart()" onmouseup="pttStop()" onmouseleave="pttStop()"
     ontouchstart="pttStart(event)" ontouchend="pttStop(event)">Hold to speak</button>
+  <button id="livemic" aria-pressed="false" aria-label="Live mic: continuous voice, auto-sends on each pause" onclick="liveToggle()">Live mic: off</button>
   <button onclick="copyAttendee()">Copy attendee link</button>
   <button onclick="downloadTranscript()">Download transcript</button>
 </div>
@@ -164,6 +183,99 @@ async function downloadTranscript(){
 }
 $('msg').addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
 boot();
+
+/* ---- Continuous mode: mic stays open; each pause auto-sends a segment ---- */
+let live = null;  // {stream, ctx, analyser, recorder, chunks, speaking, silentSince, peak, startedAt}
+const SILENCE_MS = 1200, MIN_SEG_MS = 500, MAX_SEG_MS = 15000, RMS_ON = 0.015;
+
+async function liveToggle(){
+  if (live) return liveStop();
+  if (rec) return alert('Release Hold to speak first.');
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    src.connect(analyser);
+    live = {stream, ctx, analyser, recorder:null, chunks:[], speaking:false,
+            silentSince:0, peak:0, startedAt:0};
+    liveRotate();
+    liveLoop();
+    const b = $('livemic');
+    b.textContent = 'Live mic: ON (pause = send)';
+    b.setAttribute('aria-pressed','true');
+    b.style.background = '#B3261E'; b.style.color = '#fff'; b.style.borderColor = '#B3261E';
+  }catch(err){ alert('Microphone access is needed for live mic.'); }
+}
+
+function liveRotate(){
+  if (!live) return;
+  live.chunks = []; live.peak = 0; live.startedAt = performance.now();
+  const r = new MediaRecorder(live.stream);
+  r.ondataavailable = ev => { if (live) live.chunks.push(ev.data); };
+  r.start();
+  live.recorder = r;
+}
+
+function liveLoop(){
+  if (!live) return;
+  const buf = new Float32Array(live.analyser.fftSize);
+  live.analyser.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i]*buf[i];
+  const rms = Math.sqrt(sum/buf.length);
+  const now = performance.now();
+  if (rms > RMS_ON){
+    live.speaking = true; live.silentSince = 0;
+    if (rms > live.peak) live.peak = rms;
+  } else if (live.speaking){
+    if (!live.silentSince) live.silentSince = now;
+    if (now - live.silentSince > SILENCE_MS) liveCut();
+  }
+  if (live && now - live.startedAt > MAX_SEG_MS && live.speaking) liveCut();
+  if (live) requestAnimationFrame(liveLoop);
+}
+
+async function liveCut(){
+  const seg = live; if (!seg || !seg.recorder) return;
+  const hadSpeech = seg.peak > RMS_ON && (performance.now() - seg.startedAt) > MIN_SEG_MS;
+  const r = seg.recorder;
+  seg.speaking = false; seg.silentSince = 0;
+  await new Promise(res => { r.onstop = res; r.stop(); });
+  const blob = new Blob(seg.chunks, {type: r.mimeType || 'audio/webm'});
+  if (live) liveRotate();  // keep listening for the next utterance
+  if (hadSpeech && blob.size > 4000) liveSend(blob);
+}
+
+async function liveSend(blob){
+  const fd = new FormData();
+  fd.append('audio', blob, 'speech.webm');
+  try{
+    const resp = await fetch(`/v1/channels/${CHANNEL}/speak?priority_class=${$('klass').value}`,
+      {method:'POST', body: fd});
+    const d = await resp.json();
+    if (resp.ok && d.transcript && d.transcript.trim()){
+      const ok = d.receipts.filter(x => x.delivered).length;
+      const div = document.createElement('div');
+      div.className = 'msg';
+      div.innerHTML = `${d.transcript}<div class="meta">live mic &middot; ${ok}/${d.receipts.length} delivered &middot; ${$('klass').value}</div>`;
+      $('sent').prepend(div);
+      refresh();
+    }
+  }catch(err){ /* keep listening; transient send errors must not kill the mic */ }
+}
+
+function liveStop(){
+  const seg = live; live = null;
+  try{ if (seg.recorder && seg.recorder.state !== 'inactive') seg.recorder.stop(); }catch(e){}
+  try{ seg.stream.getTracks().forEach(t => t.stop()); }catch(e){}
+  try{ seg.ctx.close(); }catch(e){}
+  const b = $('livemic');
+  b.textContent = 'Live mic: off';
+  b.setAttribute('aria-pressed','false');
+  b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
+}
 </script>
 </body>
 </html>
