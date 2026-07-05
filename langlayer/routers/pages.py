@@ -69,3 +69,10 @@ def security_page() -> str:
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard_page() -> str:
     return _page("dashboard.html")
+
+@router.get("/og.png")
+def og_image():
+    from fastapi.responses import FileResponse
+    from pathlib import Path as _P
+    return FileResponse(str(_P(__file__).parent.parent / "static" / "og.png"), media_type="image/png")
+
