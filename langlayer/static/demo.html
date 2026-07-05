@@ -174,14 +174,24 @@ function render(endpointId, a){
   b.onclick = () => { $('dlg-body').textContent = JSON.stringify(a.decisions, null, 2); dlg.showModal(); };
   feed.appendChild(b);
   feed.scrollTop = feed.scrollHeight;
+  trackDelivery(a);
   refreshMetrics();
 }
 
+/* Session-local metrics: this visitor's own deliveries, fresh per tab */
+const SESSION = {n: 0, ok: 0, times: []};
+function trackDelivery(a){
+  SESSION.n += 1;
+  if (a.sla_met) SESSION.ok += 1;
+  if (typeof a.e2e_ms === 'number') SESSION.times.push(a.e2e_ms);
+}
 async function refreshMetrics(){
-  const m = await (await fetch('/v1/metrics')).json();
-  $('m-del').textContent = m.deliveries;
-  $('m-p95').textContent = m.e2e_ms.p95 === null ? '–' : m.e2e_ms.p95 + ' ms';
-  $('m-sla').textContent = m.sla_met_rate === null ? '–' : Math.round(m.sla_met_rate * 100) + '%';
+  $('m-del').textContent = SESSION.n;
+  if (SESSION.times.length){
+    const t = [...SESSION.times].sort((a,b)=>a-b);
+    $('m-p95').textContent = t[Math.min(t.length-1, Math.floor(t.length*0.95))] + ' ms';
+  } else { $('m-p95').textContent = '–'; }
+  $('m-sla').textContent = SESSION.n ? Math.round(SESSION.ok/SESSION.n*100) + '%' : '–';
 }
 
 async function post(body){
@@ -209,6 +219,16 @@ $('outage').onclick = async e => {
 };
 
 seed();
+
+/* Enter sends; Shift+Enter makes a newline */
+(function(){
+  const box = document.querySelector('textarea');
+  if (box) box.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+  });
+})();
+
+fetch('/v1/warm').catch(()=>{}); // wake db + AI providers so first send is fast
 </script>
 <p style="margin-top:2.5rem;font-size:.8rem;color:#4A514F;text-align:center">Encrypted in transit. Content never stored. <a href="/security">Security</a></p>
 </body>

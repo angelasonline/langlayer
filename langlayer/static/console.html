@@ -276,6 +276,16 @@ function liveStop(){
   b.setAttribute('aria-pressed','false');
   b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
 }
+
+/* Enter sends; Shift+Enter makes a newline */
+(function(){
+  const box = document.querySelector('textarea');
+  if (box) box.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+  });
+})();
+
+fetch('/v1/warm').catch(()=>{}); // wake db + AI providers so first send is fast
 </script>
 </body>
 </html>
