@@ -533,3 +533,22 @@ def test_exhaustion_triggers_automatic_retry(world):
     assert rec.delivered, causes
     assert "automatic retry after exhaustion" in causes, causes
     assert rec.sla_met is False and "delivered on retry" in rec.sla_violations
+
+
+def test_total_outage_still_delivers_untranslated(world):
+    """Breakers open + cache miss: the floor delivers source text honestly."""
+    import asyncio
+    from langlayer.models import ContentEvent, PriorityClass
+    from langlayer.render import process_event
+    store, registry, venue, chan, *_ = world
+    for name in ("ai-realtime", "ai-realtime-alt", "human-bridge"):
+        p = registry.get(name)
+        p.forced_outage = True
+        for _ in range(3):
+            p.circuit.record_failure()  # breakers open: chain collapses to cache
+    ev = ContentEvent(channel_id=chan.id, priority_class=PriorityClass.announcement,
+                      payload="Doors open at seven")
+    recs = asyncio.run(process_event(ev, store, registry))
+    assert all(r.delivered for r in recs), [r.failover_causes for r in recs]
+    assert any(r.source_used in ("pa-passthrough", "captions-fallback") for r in recs)
+    assert all(r.sla_met is False for r in recs)
