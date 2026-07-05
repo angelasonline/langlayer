@@ -154,6 +154,23 @@ async def process_event(event: ContentEvent, store: Store,
             lead.source_used = "captions-fallback"
             lead.failover_causes.insert(0, "sign video: no capable source; delivered as captions fallback")
             lead.signature = _sign(lead)
+        if not lead.delivered:
+            # The floor: every content event gets delivered, even if only as
+            # the source text with an honest label. English-with-a-note beats
+            # silence; the receipt records exactly what happened.
+            fl = Artifact(plan_id=members[0].id, modality=Modality.captions,
+                          language=members[0].language,
+                          content=f"[untranslated notice] {event.payload or ''}".strip(),
+                          provider="pa-passthrough", quality_estimate=0.3)
+            store.artifacts[fl.id] = fl
+            lead.artifact_id = fl.id
+            lead.delivered = True
+            lead.source_used = "pa-passthrough"
+            lead.failover_causes.insert(0, "all translation sources unavailable; delivered untranslated")
+            if "delivered untranslated" not in lead.sla_violations:
+                lead.sla_violations.append("delivered untranslated")
+            lead.sla_met = False
+            lead.signature = _sign(lead)
         out = [lead]
         lead_artifact = store.artifacts.get(lead.artifact_id) if lead.artifact_id else None
         for p in members[1:]:
