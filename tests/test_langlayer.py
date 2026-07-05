@@ -504,3 +504,32 @@ def test_sign_chain_exhaustion_falls_back_to_captions(world):
     rec = next(r for r in recs if r.profile_id == p.id)
     assert rec.delivered and rec.source_used == "captions-fallback"
     assert "sign video: no capable source" in " ".join(rec.failover_causes)
+
+
+def test_exhaustion_triggers_automatic_retry(world):
+    """First pass exhausts; automatic retry succeeds; receipt says so honestly."""
+    import asyncio
+    from langlayer.models import ContentEvent, PriorityClass
+    from langlayer.render import process_event
+    store, registry, venue, chan, *_ = world
+    registry.get("ai-realtime").forced_outage = True
+    hb = registry.get("human-bridge")
+    for _ in range(3):
+        hb.circuit.record_failure()
+    alt = registry.get("ai-realtime-alt")
+    real_render, calls = alt.render, {"n": 0}
+    async def flaky(plan, event):
+        calls["n"] += 1
+        if calls["n"] <= 1:  # fail the first pass; retry succeeds
+            from langlayer.providers import ProviderError
+            raise ProviderError("transient upstream error")
+        return await real_render(plan, event)
+    alt.render = flaky
+    ev = ContentEvent(channel_id=chan.id, priority_class=PriorityClass.announcement,
+                      payload="retry me")
+    recs = asyncio.run(process_event(ev, store, registry))
+    rec = recs[0]
+    causes = " ".join(rec.failover_causes)
+    assert rec.delivered, causes
+    assert "automatic retry after exhaustion" in causes, causes
+    assert rec.sla_met is False and "delivered on retry" in rec.sla_violations
