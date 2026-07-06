@@ -6,7 +6,10 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import time
+
+log = logging.getLogger("langlayer.render")
 
 from .models import (Artifact, ContentEvent, DeliveryPlan, DeliveryReceipt,
                      Modality, now_ms)
@@ -69,6 +72,9 @@ async def execute_plan(plan: DeliveryPlan, event: ContentEvent,
             cause = "budget exceeded" if isinstance(exc, asyncio.TimeoutError) else str(exc)
             causes.append(f"{step.provider}: {cause}")
             failovers += 1
+            if not isinstance(exc, CacheMiss):
+                log.warning("provider failure: %s lang=%s cause=%s timeout=%.1fs event=%s",
+                            step.provider, plan.language, cause, timeout_s, event.id)
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
     receipt = DeliveryReceipt(
