@@ -183,7 +183,7 @@ def demo_seed() -> dict:
                        "language": langs[0], "modality": mods[0].value})
     return {"venue_id": venue.id, "channel_id": chan.id, "riders": riders,
             "provider_mode": (
-                "claude-fable-5" if any(type(p).__name__ == "AnthropicProvider"
+                "claude-sonnet-4-6" if any(type(p).__name__ == "AnthropicProvider"
                                          for p in state.registry.providers.values())
                 else "openai" if any(type(p).__name__ == "OpenAIProvider"
                                      for p in state.registry.providers.values())
