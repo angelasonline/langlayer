@@ -299,7 +299,7 @@ def test_anthropic_provider_wiring(monkeypatch):
     from langlayer.providers import default_registry
     r = default_registry()
     assert type(r.get("ai-realtime")).__name__ == "AnthropicProvider"
-    assert r.get("ai-realtime").model == "claude-fable-5"
+    assert r.get("ai-realtime").model == "claude-sonnet-4-6"
 
 
 def test_human_bridge_label_is_honest(world):
