@@ -187,7 +187,7 @@ def default_registry() -> ProviderRegistry:
     has_ant = bool(os.environ.get("ANTHROPIC_API_KEY"))
     if has_ant:
         from .providers_anthropic import AnthropicProvider
-        r.register(AnthropicProvider("ai-realtime", model="claude-fable-5"))
+        r.register(AnthropicProvider("ai-realtime", model="claude-sonnet-4-6"))
         if has_oai:
             from .providers_openai import OpenAIProvider
             r.register(OpenAIProvider("ai-realtime-alt", model="gpt-4o-mini"))

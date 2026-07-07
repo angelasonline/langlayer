@@ -18,7 +18,7 @@ API_URL = "https://api.anthropic.com/v1/messages"
 
 
 class AnthropicProvider(Provider):
-    def __init__(self, name: str = "claude-fable-5", model: str = "claude-fable-5",
+    def __init__(self, name: str = "claude-fable-5", model: str = "claude-sonnet-4-6",
                  api_key: str | None = None):
         super().__init__()
         self.name = name
