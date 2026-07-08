@@ -552,3 +552,101 @@ def test_total_outage_still_delivers_untranslated(world):
     assert all(r.delivered for r in recs), [r.failover_causes for r in recs]
     assert any(r.source_used in ("pa-passthrough", "captions-fallback") for r in recs)
     assert all(r.sla_met is False for r in recs)
+
+
+def _fake_mesh_server():
+    """Tiny OpenAI-compatible endpoint standing in for a real LAN mesh."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            user = next(m["content"] for m in body["messages"] if m["role"] == "user")
+            out = json.dumps({"choices": [{"message": {"content": f"[mesh:{body['model']}] {user}"}}]})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(out.encode())
+
+        def log_message(self, *a):  # quiet
+            pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_port}/v1"
+
+
+def test_mesh_adapter_contract():
+    import asyncio
+    from langlayer.models import ContentEvent, DeliveryPlan, Modality, PriorityClass
+    from langlayer.providers_mesh import MeshProvider
+    srv, url = _fake_mesh_server()
+    try:
+        p = MeshProvider(base_url=url, model="test-model")
+        plan = DeliveryPlan(profile_id="x", endpoint_id="x", event_id="e", language="es",
+                            modality=Modality.captions,
+                            priority_class=PriorityClass.announcement,
+                            source_chain=[], ttfo_budget_ms=1000,
+                            e2e_budget_ms=4000, reasons=[])
+        ev = ContentEvent(channel_id="c", priority_class=PriorityClass.announcement,
+                          payload="Doors open at seven")
+        art = asyncio.run(p.render(plan, ev))
+        assert art.provider == "mesh-local" and "Doors open" in art.content
+        assert art.language == "es" and art.quality_estimate == 0.7
+    finally:
+        srv.shutdown()
+
+
+def test_mesh_is_final_translated_tier_when_cloud_down(world, monkeypatch):
+    import asyncio
+    from langlayer.models import ContentEvent, PriorityClass
+    from langlayer.providers_mesh import MeshProvider
+    from langlayer.render import process_event
+    store, registry, venue, chan, *_ = world
+    srv, url = _fake_mesh_server()
+    try:
+        registry.register(MeshProvider(base_url=url))
+        registry.get("ai-realtime").forced_outage = True
+        registry.get("ai-realtime-alt").forced_outage = True
+        ev = ContentEvent(channel_id=chan.id, priority_class=PriorityClass.announcement,
+                          payload="Evacuate via exit B")
+        recs = asyncio.run(process_event(ev, store, registry))
+        assert all(r.delivered for r in recs)
+        assert any(r.source_used == "mesh-local" for r in recs), \
+            [(r.source_used, r.failover_causes) for r in recs]
+    finally:
+        srv.shutdown()
+
+
+def test_mesh_unreachable_fails_fast_and_floor_holds(world):
+    import asyncio
+    import time as _t
+    from langlayer.models import ContentEvent, DeliveryPlan, Modality, PriorityClass
+    from langlayer.providers_mesh import MeshProvider
+    p = MeshProvider(base_url="http://127.0.0.1:1")  # nothing listens here
+    plan = DeliveryPlan(profile_id="x", endpoint_id="x", event_id="e", language="es",
+                        modality=Modality.captions,
+                        priority_class=PriorityClass.announcement,
+                        source_chain=[], ttfo_budget_ms=1000,
+                        e2e_budget_ms=8000, reasons=[])
+    ev = ContentEvent(channel_id="c", priority_class=PriorityClass.announcement,
+                      payload="hello")
+    t0 = _t.monotonic()
+    import pytest
+    from langlayer.providers import ProviderError
+    with pytest.raises(ProviderError):
+        asyncio.run(p.render(plan, ev))
+    assert _t.monotonic() - t0 < 1.5, "unreachable mesh must fail fast"
+
+
+def test_cloud_receipts_unpolluted_by_inert_mesh_entry(world):
+    import asyncio
+    from langlayer.models import ContentEvent, PriorityClass
+    from langlayer.render import process_event
+    store, registry, venue, chan, *_ = world  # no mesh registered
+    ev = ContentEvent(channel_id=chan.id, priority_class=PriorityClass.announcement,
+                      payload="hello")
+    recs = asyncio.run(process_event(ev, store, registry))
+    assert all("mesh" not in " ".join(r.failover_causes) for r in recs)
