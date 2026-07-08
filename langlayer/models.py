@@ -113,12 +113,15 @@ LATENCY_BUDGETS = {
 
 # Default source chains per class. Emergency inverts: deterministic cache first.
 DEFAULT_CHAINS = {
-    PriorityClass.emergency: ["cache", "ai-realtime", "pa-passthrough"],
-    PriorityClass.conversational: ["ai-realtime", "ai-realtime-alt", "human-bridge"],
-    PriorityClass.live: ["ai-realtime", "cache", "human-bridge"],
-    PriorityClass.announcement: ["cache", "ai-realtime", "ai-realtime-alt"],
+    PriorityClass.emergency: ["cache", "ai-realtime", "mesh-local", "pa-passthrough"],
+    PriorityClass.conversational: ["ai-realtime", "ai-realtime-alt", "mesh-local", "human-bridge"],
+    PriorityClass.live: ["ai-realtime", "cache", "mesh-local", "human-bridge"],
+    PriorityClass.announcement: ["cache", "ai-realtime", "ai-realtime-alt", "mesh-local"],
     PriorityClass.static: ["cache", "ai-batch"],
 }
+# mesh-local is the offline tier: registered only when MESH_BASE_URL is set
+# (see providers.default_registry). D5 skips unregistered providers, so these
+# chain entries are inert on cloud deployments without a mesh.
 
 # Which endpoint capabilities a modality needs.
 MODALITY_NEEDS = {

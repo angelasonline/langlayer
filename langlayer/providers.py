@@ -6,6 +6,8 @@ interface; the engine never knows the difference.
 """
 from __future__ import annotations
 
+import os
+
 import asyncio
 import time
 from collections import deque
@@ -205,6 +207,9 @@ def default_registry() -> ProviderRegistry:
     for tpl, translations in DEMO_TEMPLATES.items():
         cache.preload(tpl, translations)
     r.register(cache)
+    if os.environ.get("MESH_BASE_URL") or os.environ.get("MESH_ENABLED"):
+        from .providers_mesh import MeshProvider
+        r.register(MeshProvider())
     r.register(HumanBridgeSim())
     r.register(PAPassthrough())
     return r
