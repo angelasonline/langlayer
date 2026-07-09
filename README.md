@@ -1,7 +1,5 @@
 # Language Layer
 
-**Build access, not provider dependencies.**
-
 Language is infrastructure.
 
 Public announcements are typically delivered in one language and designed for the hearing population. If you're not a native speaker, or are Deaf, society largely makes it your burden to translate, find an interpreter, or navigate your way having missed the announcement entirely. 
