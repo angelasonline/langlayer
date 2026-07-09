@@ -26,6 +26,8 @@ Language Layer is built around a few principles.
 
 Language Layer provides a stable language access layer between the devices people use and the language models that power them.
 
+Agents can coordinate communication workflows for communities, events, and shared spaces while keeping language access independent from the underlying model provider.
+
 Whether models run in the cloud, on local hardware, or across a shared community network, devices can continue providing language access without being tied to a single provider.
 
 ```text
