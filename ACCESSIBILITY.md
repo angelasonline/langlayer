@@ -10,5 +10,5 @@ color + weight + text).
 Before design-partner launch, still needed: a manual screen-reader pass
 (VoiceOver + NVDA) of the full join flow by an actual screen reader user,
 keyboard-only walkthrough of the console including push-to-talk alternative
-(spacebar toggle), and a Deaf user review of the ASL join experience. Budget
-for paid user testing; do not certify from this checklist alone.
+(spacebar toggle), and reviews from Deaf SMEs regarding ASL join experience. 
+Budget for paid user testing; do not certify from a checklist alone.
