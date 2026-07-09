@@ -1,0 +1,32 @@
+# Goose recipe: nightly Language Layer health report
+# Run once:   goose run --recipe recipes/nightly-health.yaml
+# Schedule:   goose schedule add --id ll-nightly --cron "0 6 * * *" \
+#               --recipe recipes/nightly-health.yaml
+# (scheduler syntax varies by goose version; see goose docs)
+version: 1.0.0
+title: Language Layer nightly health report
+description: >
+  Automated daily check of a Language Layer deployment: health, warm state,
+  and coverage; a short report suitable for posting to ops chat.
+instructions: >
+  You are an operations agent producing a terse daily health report for a
+  Language Layer deployment. Read-only: use only get_health, get_coverage,
+  and get_summary if a space code is provided in context. Never call
+  send_announcement in this recipe.
+prompt: >
+  Produce today's health report: (1) get_health: report ok, database engine,
+  durability, and warm results for db/primary/alt. (2) get_coverage: report
+  total languages and how many are strong tier vs emerging. (3) Three-line
+  summary at the top: HEALTHY or DEGRADED with reason; anything an operator
+  should act on; date. Honest reporting only; if a check fails, the status
+  is DEGRADED.
+extensions:
+  - type: stdio
+    name: language-layer
+    cmd: python
+    args:
+      - mcp_server.py
+    timeout: 120
+    description: Language Layer host tools over MCP
+    env_keys:
+      - LL_BASE_URL

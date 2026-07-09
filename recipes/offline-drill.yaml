@@ -1,0 +1,39 @@
+# Goose recipe: Language Layer offline emergency drill
+# Run:  goose run --recipe recipes/offline-drill.yaml
+# Docs: recipes/README.md  (schema per goose v1.3x; adjust if your goose
+# version's recipe format has drifted — the instructions are the contract)
+version: 1.0.0
+title: Language Layer offline emergency drill
+description: >
+  Verify a venue-box deployment can deliver an emergency announcement with
+  the internet disconnected: mesh reachable, model staged, templates cached,
+  receipts honest.
+instructions: >
+  You are running an emergency-readiness drill against a Language Layer
+  deployment using its MCP tools. Be precise and honest: never report a step
+  as passing unless the tool result proves it. The deployment under test is
+  a venue box: the Language Layer server and a Mesh LLM node on the same
+  LAN (see deploy/OFFLINE-DEMO.md).
+prompt: >
+  Run the offline emergency drill: (1) call get_health and confirm ok=true;
+  report the database engine and warm status. (2) call get_coverage and
+  report how many languages are available. (3) create_space named
+  "Offline Drill <today's date>". (4) send_announcement to it with
+  priority_class "emergency" and text "Drill: please proceed calmly to the
+  nearest exit." (5) Read the receipts in the response: report delivered
+  count, recipients, sla_missed, and which source each delivery used
+  (cache/template, mesh-local, or untranslated passthrough). (6) call
+  get_transcript and confirm the drill announcement appears. Finish with a
+  table: step, result, evidence. If any step fails, say exactly which and
+  why; do not soften it.
+extensions:
+  - type: stdio
+    name: language-layer
+    cmd: python
+    args:
+      - mcp_server.py
+    timeout: 120
+    description: Language Layer host tools over MCP
+    env_keys:
+      - LL_BASE_URL
+      - LL_INVITE_CODE
