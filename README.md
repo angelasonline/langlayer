@@ -61,7 +61,7 @@ Whether models run in the cloud, on local hardware, or across a shared community
 - Testing and continuous integration
 - Deployment recipes
 
-## Quick example
+## Example
 
 ```python
 from langlayer import Layer
