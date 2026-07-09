@@ -1,44 +1,35 @@
 # Language Layer
 
-**Build applications, not provider dependencies.**
+**Build access, not provider dependencies.**
 
 Language is infrastructure.
 
-I did not start by trying to build AI infrastructure. I started by trying to help people communicate.
+Public announcements are typically delivered in one language and designed for the hearing population. If you're not a native speaker, or are Deaf, society largely makes it your burden to translate, find an interpreter, or navigate your way having missed the announcement entirely. 
 
-As an events professional, I've spent years watching thousands of people gather in the same place, often speaking different languages, using different devices, and needing information immediately. Translation, announcements, accessibility, and communication are not "AI features." They are what make participation possible.
+As language models became capable of solving these problems, access became dependent on infrastructure that communities did not control.
 
-As language models became capable of solving these problems, a new one appeared.
+**What if people could enter any space and receive information in the language that works for them, without carrying the burden of translation, interpretation, or accessibility alone?**
 
-Every solution depended on a different provider, a different API, and a different set of assumptions. If a service changed, applications changed with it.
-
-**What if applications depended on language instead of vendors?**
-
-Language Layer sits between your application and whatever language models are available, whether they run in the cloud, on a local machine, or across a shared community network.
-
-Applications stay the same.
-
-The infrastructure underneath can evolve.
+Language Layer enables devices to provide language access without depending on a single provider or infrastructure. The underlying language models can run anywhere: in the cloud, on a local device, or across a shared community network.
 
 ## Why Language Layer?
 
 Language Layer is built around a few principles.
 
-- Infrastructure should outlive vendors.
-- AI applications should survive provider outages.
-- Models should be replaceable without rewriting applications.
-- Communities should be able to run AI together.
-- Open protocols should make agents more interoperable.
-- Reliability should be built in, not bolted on later.
+- Open protocols create a foundation for interoperable agents.
+- AI systems maintain resilient pathways for communication and safety, even during provider outages.
+- Models remain replaceable without rewriting applications.
+- Communities can run and share AI together.
+- Reliability is built into the foundation, not added as an afterthought.
 
 ## What it does
 
-Language Layer provides a stable interface between your application and one or more language model providers.
+Language Layer provides a stable language access layer between the devices people use and the language models that power them.
 
-It manages routing, health monitoring, provider abstraction, recovery, and interoperability so your application can focus on its own work instead of provider-specific integrations.
+Whether models run in the cloud, on local hardware, or across a shared community network, devices can continue providing language access without being tied to a single provider.
 
 ```text
-                Your Application
+                Devices & Systems
                        │
                        ▼
               ┌─────────────────┐
@@ -53,11 +44,13 @@ It manages routing, health monitoring, provider abstraction, recovery, and inter
               └─────────────────┘
                  │      │      │
                  ▼      ▼      ▼
-             OpenAI Anthropic Local / Mesh
+              Cloud   Local   Community
+              Models  Models  Networks
 ```
 
 ## Core capabilities
 
+- Accessibility-first documentation
 - Multi-provider routing
 - Provider abstraction
 - Health monitoring and automatic failover
@@ -66,7 +59,6 @@ It manages routing, health monitoring, provider abstraction, recovery, and inter
 - Mesh-aware provider support
 - Model Context Protocol (MCP) server
 - Testing and continuous integration
-- Accessibility-first documentation
 - Deployment recipes
 
 ## Quick example
@@ -114,12 +106,4 @@ Additional documentation includes:
 
 ## Design philosophy
 
-Language Layer is not another language model.
-
-It is infrastructure that allows applications to remain portable as language models continue to evolve.
-
-The goal is to make provider choice less important than application design.
-
-Applications should be able to move between providers, run locally, recover from outages, and participate in open ecosystems without changing their core logic.
-
-Language Layer is infrastructure for AI that you can understand, move, and own.
+Access to language is a human right. The infrastructure that enables it should be open, resilient, and available wherever people need it.
