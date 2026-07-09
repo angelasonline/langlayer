@@ -1,99 +1,125 @@
-# Language Layer — reference implementation
+# Language Layer
 
-Working backend for the Language Layer spec (`language-layer-spec.md`): the routing
-engine (decisions D1–D6), provider source chains with automatic failover and circuit
-breakers, delivery receipts signed and SLA-evaluated (D7), presence with TTL expiry,
-live language/modality switching, GDPR erasure, and metrics derived entirely from
-receipts.
+**Build applications, not provider dependencies.**
 
-## Offline resilience (Mesh LLM)
+Language is infrastructure.
 
-Language Layer can deliver translated announcements with no internet, using
-a local model served by [Mesh LLM](https://github.com/Mesh-LLM/mesh-llm) on
-the venue LAN as the final translated tier in the failover chain. See
-[deploy/OFFLINE-DEMO.md](deploy/OFFLINE-DEMO.md) for the fire-extinguisher
-drill. Licensed Apache-2.0.
+I did not start by trying to build AI infrastructure. I started by trying to help people communicate.
 
-## Run it
+As an events professional, I've spent years watching thousands of people gather in the same place, often speaking different languages, using different devices, and needing information immediately. Translation, announcements, accessibility, and communication are not "AI features." They are what make participation possible.
 
-```bash
-pip install fastapi uvicorn pytest httpx
+As language models became capable of solving these problems, a new one appeared.
 
-python demo.py                      # CLI end-to-end transit scenario
-python prove.py                     # generates PROOF-REPORT.md (evidence run)
-python -m pytest tests/ -q          # 12 tests (incl. HTTP+WebSocket end-to-end)
-uvicorn langlayer.api:app --reload  # then open http://localhost:8000/demo
+Every solution depended on a different provider, a different API, and a different set of assumptions. If a service changed, applications changed with it.
+
+**What if applications depended on language instead of vendors?**
+
+Language Layer sits between your application and whatever language models are available, whether they run in the cloud, on a local machine, or across a shared community network.
+
+Applications stay the same.
+
+The infrastructure underneath can evolve.
+
+## Why Language Layer?
+
+Language Layer is built around a few principles.
+
+- Infrastructure should outlive vendors.
+- AI applications should survive provider outages.
+- Models should be replaceable without rewriting applications.
+- Communities should be able to run AI together.
+- Open protocols should make agents more interoperable.
+- Reliability should be built in, not bolted on later.
+
+## What it does
+
+Language Layer provides a stable interface between your application and one or more language model providers.
+
+It manages routing, health monitoring, provider abstraction, recovery, and interoperability so your application can focus on its own work instead of provider-specific integrations.
+
+```text
+                Your Application
+                       │
+                       ▼
+              ┌─────────────────┐
+              │  Language Layer │
+              ├─────────────────┤
+              │ Routing          │
+              │ Health           │
+              │ Policies         │
+              │ Recovery         │
+              │ MCP Server       │
+              │ Observability    │
+              └─────────────────┘
+                 │      │      │
+                 ▼      ▼      ▼
+             OpenAI Anthropic Local / Mesh
 ```
 
-## The live demo (the thing you show OpenAI)
+## Core capabilities
 
-Three URLs once the server is up:
+- Multi-provider routing
+- Provider abstraction
+- Health monitoring and automatic failover
+- Configurable routing policies
+- Local and cloud execution
+- Mesh-aware provider support
+- Model Context Protocol (MCP) server
+- Testing and continuous integration
+- Accessibility-first documentation
+- Deployment recipes
 
-- `/demo` — operator console + three live phones (the pitch itself)
-- `/rider` — standalone mobile endpoint: open it on an actual phone, pick a
-  profile, and announcements arrive in that person's language (emergency
-  deliveries vibrate). Deep-linkable: `/rider?endpoint_id=...`
-- `/dashboard` — live operations: receipt-derived metrics, provider health
-  with circuit states, and a rolling table of signed receipts
+## Quick example
 
-`/demo` is an operator console and three live "phones"
-(Marisol: es-MX speech · Devon: ASL · Ana: simplified English). Type any
-announcement and watch it arrive on all three simultaneously, each in that
-person's language and modality, with source/latency/SLA badges per delivery.
-Buttons fire the templated arrival, the emergency evacuation (deterministic
-template outranks live AI), and a primary-AI outage toggle so the audience can
-watch failover happen in the receipts. Tap any bubble to see that delivery's
-full D1–D6 decision record.
+```python
+from langlayer import Layer
 
-**Real models:** `export OPENAI_API_KEY=sk-...` before starting and the registry
-swaps the simulated AI providers for live OpenAI calls (`providers_openai.py`) —
-same adapter contract, zero engine changes. Without a key everything runs
-simulated, so the demo works offline too (recommended backup for the meeting).
+layer = Layer()
 
-The demo puts three riders with different profiles (Spanish speech, ASL sign video,
-simplified-English captions) on one transit platform, then runs: a templated
-announcement (cache-first, ~0 ms), a free-text announcement (AI realtime), the same
-during a forced primary-AI outage (automatic failover, recorded in receipts), and an
-emergency evacuation (deterministic template outranks live AI by policy). It ends by
-printing one plan's full D1–D6 decision record and the platform metrics.
+response = layer.chat("Summarize this document.")
 
-## Layout
-
-```
-langlayer/models.py     data models, latency budgets, default source chains
-langlayer/routing.py    the decision engine (pure, auditable)
-langlayer/providers.py  provider adapter contract, simulated providers, circuit breaker
-langlayer/render.py     failover execution, signed receipts, SLA, metrics
-langlayer/store.py            storage (in-memory; Postgres-interface-compatible)
-langlayer/api.py              FastAPI surface + WS delivery + /demo page
-langlayer/providers_openai.py real OpenAI adapter (auto-enabled via OPENAI_API_KEY)
-langlayer/delivery.py         WebSocket delivery hub
-langlayer/static/demo.html    the live pitch demo UI
-demo.py, prove.py, tests/, deploy/ (Dockerfile, compose, Fly, Render), PILOT-KIT.md
+print(response.text)
 ```
 
-## What's simulated vs. real
+## Architecture
 
-Real: every decision, the failover machinery, circuit breakers, budgets, receipts,
-signatures, SLA evaluation, metrics, erasure. Simulated: the providers — each is a
-stub behind the exact adapter contract (`render(plan, event) -> Artifact`) the
-production OpenAI Realtime adapter implements, so swapping in real models touches
-`providers.py` only, never the engine. Streaming ingest/delivery (WebSocket/WebRTC)
-and durable storage are Phase 1 per the spec's build plan.
+Language Layer is organized around modular components rather than provider-specific implementations.
 
-## Offline resilience and agent operability
+Key components include:
 
-**Offline (venue box):** Language Layer can render announcements against a
-local model served by [Mesh LLM](https://github.com/Mesh-LLM/mesh-llm) on
-the venue's LAN — the degraded-but-present tier for when the internet is
-gone. The adapter is `langlayer/providers_mesh.py`; the unplugged-router
-runbook is `deploy/OFFLINE-DEMO.md`. Pre-translated emergency templates
-outrank live AI in the emergency chain by policy, so the highest-stakes
-messages never wait on a model, local or cloud.
+- Provider adapters
+- Routing engine
+- Health monitoring
+- Recovery policies
+- Circuit breakers
+- Provider chains
+- Mesh providers
+- MCP integration
+- Deployment tooling
 
-**Agents (Goose, Claude, any MCP client):** `mcp_server.py` exposes host
-operations as MCP tools, so agents can operate the delivery layer: create
-spaces, send announcements, read signed receipts. Goose recipes ship in
-`recipes/` (an offline emergency drill and a nightly health report, both
-schedulable). Wiring guide: `MCP-AGENTS.md`. Built for the Mesh LLM / Goose
-ecosystem; the engine itself is agent-agnostic and unchanged.
+## Model Context Protocol
+
+Language Layer includes an MCP server that allows AI agents to interact with Language Layer through an open protocol.
+
+## Documentation
+
+Additional documentation includes:
+
+- MCP agent guide
+- Deployment documentation
+- Accessibility documentation
+- Pilot Kit
+- Deployment recipes
+- Proof report
+
+## Design philosophy
+
+Language Layer is not another language model.
+
+It is infrastructure that allows applications to remain portable as language models continue to evolve.
+
+The goal is to make provider choice less important than application design.
+
+Applications should be able to move between providers, run locally, recover from outages, and participate in open ecosystems without changing their core logic.
+
+Language Layer is infrastructure for AI that you can understand, move, and own.
