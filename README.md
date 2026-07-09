@@ -2,9 +2,7 @@
 
 Language is infrastructure.
 
-Public announcements are typically delivered in one language and designed for the hearing population. If you're not a native speaker, or are Deaf, society largely makes it your burden to translate, find an interpreter, or navigate your way having missed the announcement entirely. 
-
-As language models became capable of solving these problems, access became dependent on infrastructure that communities did not control.
+Today, public announcements are typically delivered in one language and designed for the hearing population. If you're not a native speaker, or are Deaf, society largely makes it your burden to translate, find an interpreter, or navigate your way having missed the announcement entirely. 
 
 **What if people could enter any space and receive information in the language that works for them, without carrying the burden of translation, interpretation, or accessibility alone?**
 
