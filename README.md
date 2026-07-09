@@ -1,9 +1,9 @@
 # Language Layer
 
-Language access, turned on like Wi-Fi. A space (a school, clinic, transit
-line, or event) posts one QR code; everyone in it receives every announcement
+Language access, turned on like Wi-Fi. A public space (clinic, event, transit
+line, school, etc) posts one QR code; everyone in the space receives every announcement
 in their own language and format: text, plain language, or spoken aloud.
-No app, no account. Ask once, understood always.
+No app, no account. Ask once.
 
 **Live:** https://langlayer.onrender.com
 
