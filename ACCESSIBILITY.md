@@ -1,4 +1,4 @@
-# Accessibility posture (product UI)
+# Accessibility Posture
 
 Done in this build: WCAG AA contrast on all text (#595959 minimum on white),
 live-region announcements on attendee and console feeds (role=log,
