@@ -1,0 +1,4 @@
+# Agent operability: run mcp_server.py so Goose, Claude, or any MCP agent
+# can operate Language Layer. Not required by the web service itself.
+mcp>=1.2
+httpx>=0.27
