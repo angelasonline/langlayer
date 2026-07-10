@@ -1,9 +1,15 @@
-Language Layer
-Language is infrastructure.
+# Language Layer
+
+**Language is infrastructure.**
+
 Today, public announcements are typically delivered in one language and designed for the hearing population. If you're not a native speaker, or are Deaf, society largely makes it your burden to translate, find an interpreter, or navigate your way having missed the announcement entirely.
+
 What if people could enter any space and receive information in the language that works for them, without carrying the burden of translation, interpretation, or accessibility alone?
+
 Language Layer enables devices to provide language access without depending on a single provider or infrastructure. The underlying language models can run anywhere: in the cloud, on a local device, or across a shared community network.
-Why Language Layer?
+
+## Why Language Layer?
+
 Language Layer is built around a few principles.
 
 * Open protocols create a foundation for interoperable agents.
@@ -11,33 +17,37 @@ Language Layer is built around a few principles.
 * Models remain replaceable without rewriting applications.
 * Communities can run and share AI together.
 * Reliability is built into the foundation, not added as an afterthought.
-What it does
+
+## What it does
+
 Language Layer provides a stable language access layer between the devices people use and the language models that power them.
+
 Agents can coordinate communication workflows for communities, events, and shared spaces while keeping language access independent from the underlying model provider.
+
 Whether models run in the cloud, on local hardware, or across a shared community network, devices can continue providing language access without being tied to a single provider.
 
 ```
                 Devices & Systems
-                       │
-                       ▼
-              ┌─────────────────┐
-              │  Language Layer │
-              ├─────────────────┤
-              │ Routing          │
-              │ Health           │
-              │ Policies         │
-              │ Recovery         │
-              │ MCP Server       │
-              │ Observability    │
-              └─────────────────┘
-                 │      │      │
-                 ▼      ▼      ▼
+                        |
+                        v
+              +-------------------+
+              |  Language Layer   |
+              +-------------------+
+              | Routing           |
+              | Health            |
+              | Policies          |
+              | Recovery          |
+              | MCP Server        |
+              | Observability     |
+              +-------------------+
+                 |      |      |
+                 v      v      v
               Cloud   Local   Community
               Models  Models  Networks
-
 ```
 
-Resilience ladder
+## Resilience ladder
+
 Language access degrades gracefully as the network weakens, and every step is labeled honestly so a delivery is never silent.
 
 1. Cloud models. Anthropic primary with OpenAI as automatic failover.
@@ -45,7 +55,7 @@ Language access degrades gracefully as the network weakens, and every step is la
 3. Local mesh. A model served on the venue's own network via Mesh LLM, so translation continues when the internet is gone.
 4. Untranslated floor. The original message is always delivered with a clear notice, so nothing is ever lost to silence.
 
-Core capabilities
+## Core capabilities
 
 * Accessibility-first documentation
 * Multi-provider routing
@@ -59,7 +69,8 @@ Core capabilities
 * Model Context Protocol (MCP) server
 * Testing and continuous integration
 * Deployment recipes
-Example
+
+## Example
 
 ```
 from langlayer import Layer
@@ -71,8 +82,10 @@ response = layer.chat("Summarize this document.")
 print(response.text)
 ```
 
-Architecture
+## Architecture
+
 Language Layer is organized around modular components rather than provider-specific implementations.
+
 Key components include:
 
 * Provider adapters
@@ -84,10 +97,15 @@ Key components include:
 * Mesh providers
 * MCP integration
 * Deployment tooling
-Model Context Protocol
+
+## Model Context Protocol
+
 Language Layer includes an MCP server that allows AI agents to interact with Language Layer through an open protocol.
+
 Shipped Goose recipes let an agent run an offline emergency drill and a scheduled health report against a deployment. See the MCP agent guide.
-Documentation
+
+## Documentation
+
 Additional documentation includes:
 
 * MCP agent guide
@@ -96,5 +114,7 @@ Additional documentation includes:
 * Pilot Kit
 * Deployment recipes
 * Proof report
-Design philosophy
+
+## Design philosophy
+
 Access to language is a human right. The infrastructure that enables it should be open, resilient, and available wherever people need it.
