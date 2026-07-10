@@ -48,7 +48,7 @@ Whether models run in the cloud, on local hardware, or across a shared community
 
 ## Resilience ladder
 
-Language access degrades gracefully as the network weakens, and every step is labeled honestly so a delivery is never silent.
+Language access degrades gracefully as the network weakens or fails, so a delivery always arrives, clearly labeled for what it is.
 
 1. Cloud models. Anthropic primary with OpenAI as automatic failover.
 2. On-device translation. When the server cannot translate, the person's own device re-translates the original text locally using the browser's built-in translation, with no network connection and no keys. Browsers that do not support this keep the original text, clearly labeled.
