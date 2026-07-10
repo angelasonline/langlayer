@@ -147,8 +147,41 @@ async function join(){
   $('feedwrap').style.display = 'flex';
   $('who').textContent = name;
   $('prefs').textContent = ' · ' + $('lang').selectedOptions[0].text + ' · ' + ($('fmt').selectedOptions[0]?.text || 'Sign language (text gloss for now)');
+  window.MY_LANG = $('lang').value;
   connect(d.endpoint_id);
 }
+
+/* ---- On-device translation fallback (resilience ladder, client tier) ----
+   When the server delivers an untranslated notice (its own sources were all
+   down), the attendee's phone tries to translate the original text locally
+   using the browser's built-in Translator API. Fully offline, on-device.
+   Unsupported browsers simply keep the untranslated text, honestly labeled. */
+let ODT = { checked:false, supported:false, cache:{} };
+
+async function odtSupported(){
+  if (ODT.checked) return ODT.supported;
+  ODT.checked = true;
+  ODT.supported = (typeof self !== 'undefined') &&
+                  ('Translator' in self) && MY_LANG && MY_LANG !== 'en';
+  return ODT.supported;
+}
+
+async function odtTranslate(text){
+  try {
+    if (!(await odtSupported())) return null;
+    const pair = 'en>' + MY_LANG;
+    if (!ODT.cache[pair]){
+      const avail = await self.Translator.availability({
+        sourceLanguage:'en', targetLanguage: MY_LANG });
+      if (avail === 'unavailable') return null;
+      ODT.cache[pair] = await self.Translator.create({
+        sourceLanguage:'en', targetLanguage: MY_LANG });
+    }
+    const out = await ODT.cache[pair].translate(text);
+    return (out && out.trim()) ? out.trim() : null;
+  } catch(e){ return null; }
+}
+
 const VOICE_LANG = {en:'en-US', es:'es-MX', fr:'fr-FR', it:'it-IT', pt:'pt-BR', ru:'ru-RU',
   ar:'ar-SA', zh:'zh-CN', de:'de-DE', ja:'ja-JP', ko:'ko-KR', hi:'hi-IN', nl:'nl-NL',
   tr:'tr-TR', pl:'pl-PL', th:'th-TH', vi:'vi-VN', el:'el-GR', cs:'cs-CZ', da:'da-DK',
@@ -175,9 +208,19 @@ function connect(endpointId){
     if (!a.delivered) return;
     $('feed').querySelector('.empty')?.remove();
     const clean = a.content.replace(/^\[[^\]]*\]\s*/, '');
+    const wasUntranslated = /untranslated notice/i.test(a.content);
     const b = document.createElement('div');
     b.className = 'bubble' + (a.priority_class === 'emergency' ? ' emergency' : '');
     b.innerHTML = `<div dir="auto">${clean}</div><div class="meta">${a.e2e_ms} ms${a.modality==='speech' ? ' &middot; tap to replay audio' : ''}</div>`;
+    if (wasUntranslated){
+      odtTranslate(clean).then(t => {
+        if (t){
+          b.querySelector('[dir=auto]').textContent = t;
+          b.querySelector('.meta').innerHTML =
+            'translated on your device &middot; offline fallback';
+        }
+      });
+    }
     if (a.modality === 'speech'){
       const spoke = speak(clean, a.language);
       if (!spoke) b.querySelector('.meta').innerHTML += ' &middot; no device voice for this language, showing text';
