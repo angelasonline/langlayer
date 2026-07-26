@@ -1,6 +1,7 @@
 """Auto-split router: reads shared state at call time."""
 from __future__ import annotations
 
+import asyncio
 import os
 
 from fastapi import (APIRouter, Depends, File, HTTPException, Request,
@@ -11,12 +12,14 @@ from pydantic import BaseModel
 
 from .. import state
 from ..ratelimit import limiter
-from ..models import (LANGUAGES, MODALITY_LABELS, Channel, ContentEvent,
-                      ContextOverride, Endpoint, LanguagePref, Modality,
+from ..models import (LANGUAGE_NAMES, LANGUAGES, LATENCY_BUDGETS, MODALITY_LABELS,
+                      ChainStep, Channel, ContentEvent, ContextOverride,
+                      DeliveryPlan, Endpoint, LanguagePref, Modality,
                       ModalityPref, PreferenceSet, PresenceSession,
                       PriorityClass, Profile, Venue, now_ms)
-from ..render import metrics, process_event
-from ..routing import route
+from ..render import execute_plan, metrics, process_event
+from ..routing import build_source_chain, route
+from ..store import Store
 
 router = APIRouter()
 
@@ -287,6 +290,127 @@ def preview(event: ContentEvent) -> dict:
     health = {n: p.circuit.state for n, p in state.registry.providers.items()}
     plans = route(event, state.store, health)
     return {"plans": [p.model_dump() for p in plans]}
+
+
+# ---- Stateless render (/v1/render) --------------------------------------
+# The ingest path (POST /v1/channels/{cid}/events) renders one variant per
+# *joined attendee* and pushes it to that attendee's endpoint. A transport
+# bridge (e.g. Buzz -> Bitchat geohash mesh) needs the inverse: give it a
+# payload plus an explicit list of target languages and get the rendered
+# artifacts back directly — no attendees, presence, or delivery.
+#
+# This reuses the real render path — build_source_chain (routing) +
+# execute_plan (render) + the Artifact shape + the shared provider registry
+# and its circuit breakers — but renders into a THROWAWAY in-memory Store so
+# stateless renders never enter delivery receipts or skew the metrics that
+# drive SLA reporting. Content is returned to the caller and never retained.
+MAX_RENDER_TARGETS = 25
+MAX_RENDER_PAYLOAD_CHARS = 4000
+# The bridge speaks "text" for plain translated text; the engine's canonical
+# modality for that is "translation". Accept the alias so callers needn't
+# know the internal name.
+_MODALITY_ALIASES = {"text": "translation"}
+
+
+class RenderTarget(BaseModel):
+    language: str
+    modality: str = "translation"
+
+
+class RenderRequest(BaseModel):
+    payload: str
+    source_language: str = "en"
+    priority_class: PriorityClass = PriorityClass.announcement
+    targets: list[RenderTarget]
+
+
+class RenderVariant(BaseModel):
+    language: str
+    modality: Modality
+    content: str
+    provider: str
+    quality_estimate: float
+    source_used: str
+    untranslated: bool           # true => Tier-4 floor (original text, not a translation)
+    failover_causes: list[str] = []
+
+
+class RenderResponse(BaseModel):
+    event_id: str
+    variants: list[RenderVariant]
+
+
+def _coerce_modality(raw: str) -> Modality:
+    key = _MODALITY_ALIASES.get(raw.strip().lower(), raw.strip().lower())
+    try:
+        return Modality(key)
+    except ValueError:
+        raise HTTPException(422, f"unknown modality '{raw}'. valid: "
+                                 f"{[m.value for m in Modality]} (alias: text=translation)")
+
+
+@router.post("/v1/render", response_model=RenderResponse)
+async def render_stateless(req: RenderRequest,
+                           _rl=Depends(limiter("render"))) -> RenderResponse:
+    payload = (req.payload or "").strip()
+    if not payload:
+        raise HTTPException(422, "payload is empty")
+    if len(payload) > MAX_RENDER_PAYLOAD_CHARS:
+        raise HTTPException(422, f"payload too long ({len(payload)} chars > "
+                                 f"{MAX_RENDER_PAYLOAD_CHARS})")
+    if not req.targets:
+        raise HTTPException(422, "at least one target is required")
+    if len(req.targets) > MAX_RENDER_TARGETS:
+        raise HTTPException(422, f"too many targets ({len(req.targets)} > "
+                                 f"{MAX_RENDER_TARGETS} per request)")
+
+    # Validate + dedupe (language, modality) pairs — one model call per unique pair.
+    seen: set[tuple[str, str]] = set()
+    pairs: list[tuple[str, Modality]] = []
+    for t in req.targets:
+        lang = t.language.strip()
+        if lang not in LANGUAGE_NAMES:
+            raise HTTPException(422, f"unsupported language '{t.language}'")
+        modality = _coerce_modality(t.modality)
+        key = (lang, modality.value)
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append((lang, modality))
+
+    event = ContentEvent(channel_id="stateless-render",
+                         priority_class=req.priority_class,
+                         source_language=req.source_language, payload=payload)
+    ttfo, e2e = LATENCY_BUDGETS[req.priority_class]
+    health = {n: p.circuit.state for n, p in state.registry.providers.items()}
+    base_chain, _ = build_source_chain(event, health)
+    # Guarantee the Tier-4 floor ("never lose the original") is always reachable,
+    # even on chains that don't include it by default (e.g. announcement).
+    if all(s.provider != "pa-passthrough" for s in base_chain):
+        base_chain = base_chain + [ChainStep(provider="pa-passthrough", role="fallback")]
+
+    scratch = Store()  # in-memory, no DB: keeps stateless renders out of prod receipts
+
+    async def render_one(lang: str, modality: Modality) -> RenderVariant:
+        plan = DeliveryPlan(
+            event_id=event.id, profile_id="stateless", language=lang,
+            modality=modality, endpoint_id="stateless", source_chain=base_chain,
+            ttfo_budget_ms=ttfo, e2e_budget_ms=e2e, priority_class=req.priority_class,
+            decisions={"note": "stateless /v1/render: explicit target, no attendee"})
+        receipt = await execute_plan(plan, event, state.registry, scratch)
+        art = scratch.artifacts.get(receipt.artifact_id) if receipt.artifact_id else None
+        source_used = receipt.source_used or "pa-passthrough"
+        return RenderVariant(
+            language=lang, modality=modality,
+            content=art.content if art else f"[untranslated notice] {payload}",
+            provider=art.provider if art else "pa-passthrough",
+            quality_estimate=art.quality_estimate if art else 0.3,
+            source_used=source_used,
+            untranslated=(source_used == "pa-passthrough"),
+            failover_causes=receipt.failover_causes)
+
+    variants = await asyncio.gather(*(render_one(lang, mod) for lang, mod in pairs))
+    return RenderResponse(event_id=event.id, variants=list(variants))
 
 
 @router.get("/v1/deliveries/{rid}/receipt")
