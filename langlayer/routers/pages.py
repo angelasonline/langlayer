@@ -76,3 +76,29 @@ def og_image():
     from pathlib import Path as _P
     return FileResponse(str(_P(__file__).parent.parent / "static" / "og.png"), media_type="image/png")
 
+@router.get("/manifest.webmanifest")
+def manifest():
+    from fastapi.responses import FileResponse
+    from pathlib import Path as _P
+    return FileResponse(str(_P(__file__).parent.parent / "static" / "manifest.webmanifest"),
+                        media_type="application/manifest+json")
+
+
+@router.get("/sw.js")
+def service_worker():
+    from fastapi.responses import FileResponse
+    from pathlib import Path as _P
+    return FileResponse(str(_P(__file__).parent.parent / "static" / "sw.js"),
+                        media_type="application/javascript")
+
+
+@router.get("/icons/{name}")
+def pwa_icon(name: str):
+    from fastapi.responses import FileResponse
+    from pathlib import Path as _P
+    safe = name.replace("/", "").replace("..", "")
+    path = _P(__file__).parent.parent / "static" / "icons" / safe
+    if not path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(404)
+    return FileResponse(str(path), media_type="image/png")
