@@ -55,7 +55,7 @@ def _pick_endpoint(sessions: list[PresenceSession], store: Store) -> tuple[Endpo
     return store.endpoints[chosen.endpoint_id], f"D4: {why} on {chosen.endpoint_id}"
 
 
-def _source_chain(event: ContentEvent, registry_health: dict[str, str]) -> tuple[list[ChainStep], str]:
+def build_source_chain(event: ContentEvent, registry_health: dict[str, str]) -> tuple[list[ChainStep], str]:
     names = DEFAULT_CHAINS[event.priority_class]
     steps, skipped = [], []
     for i, n in enumerate(names):
@@ -94,7 +94,7 @@ def route(event: ContentEvent, store: Store,
         language, d2 = _pick_language(profile, contexts)
         endpoint, d4 = _pick_endpoint(sessions, store)
         modality, d3 = _pick_modality(profile, endpoint, contexts)
-        chain, d5 = _source_chain(event, registry_health)
+        chain, d5 = build_source_chain(event, registry_health)
         plans.append(DeliveryPlan(
             event_id=event.id, profile_id=profile_id, language=language,
             modality=modality, endpoint_id=endpoint.id, source_chain=chain,
