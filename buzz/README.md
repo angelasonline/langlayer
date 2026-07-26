@@ -5,16 +5,16 @@ Civic-messaging bridge: get an organizer's announcement to a **place**, in every
 
 It does two things, from one Buzz **announcements** channel:
 
-1. **Mirror** copy each announcement to a Nostr **geohash** channel (Bitchat's
+1. **Mirror** — copy each announcement to a Nostr **geohash** channel (Bitchat's
    location-channel format) so phones physically near a place can receive it
    (`bridge.py`).
-2. **Translate-then-forward** fan one announcement into **N language variants**
+2. **Translate-then-forward** — fan one announcement into **N language variants**
    via Langlayer, and forward each to the geohash so every phone sees the message
    in its own language (`translate_forward.py`).
 
 This is a **self-mirror**, not a broadcast to strangers:
 
-- Destination geohash defaults to `1r23b` - **Point Nemo**, the oceanic pole of
+- Destination geohash defaults to `1r23b` — **Point Nemo**, the oceanic pole of
   inaccessibility (the farthest point on Earth from any land; no residents). The owner
   teleports their own Bitchat client to that cell to receive. (Avoid `s0000`: its center
   is beside null-island (0,0), where GPS-error clients congregate — not private.)
@@ -83,8 +83,10 @@ cell center (see "How it picks relays" above), NOT a fixed list.
 ## Translate-then-forward (`translate_forward.py`)
 
 Same rails as the mirror, plus a translation hop. One announcement is rendered into N
-language variants and each is forwarded to the geohash tagged `["l", <lang>]`, so a phone
-filtered to its language sees only its own.
+language variants and each is forwarded to the geohash tagged `["l", <lang>]`. The tag is
+carried on each variant so a client *could* show a reader only their own language — but
+Bitchat does **not** filter on the `l` tag today, so every client currently sees all
+variants. Per-language filtering is a proposed client change that nobody has built yet.
 
 ```
 Buzz announcement (kind-9)
@@ -153,6 +155,16 @@ All three read env for both creds and behavior:
 | Credentials (read side, `buzz` CLI) | `BUZZ_RELAY_URL`, `BUZZ_PRIVATE_KEY` (bot key), `BUZZ_AUTH_TAG` |
 | Behavior | `LANGLAYER_URL`, `GEOHASH`, `LANGUAGES`, `SOURCE_LANGUAGE`, `INTERVAL`, `RELAY_COUNT`, `PORT` |
 
+### Read-side credential gate (both paths)
+
+Both paths need the same read credential before a single forward can happen. The runner
+reads the channel with the **bot** identity, and Buzz relay reads require a **NIP-OA
+owner-attestation auth tag** (`BUZZ_AUTH_TAG`) *per request* — the bot key alone returns
+`403 relay_membership_required`. That tag is minted via Buzz **Desktop agent-provisioning**
+(bounded with a `created_at<` clause and scoped with `kind=` clauses to only what the bridge
+reads, since an issued tag can't be revoked). Until it is present in the runner's env, the
+runner boots but 403s on reads — on Render and on your Mac alike.
+
 ### Path A — local launchd (durable, private)
 
 Runs whenever your Mac is on; survives logout **and** reboot. `buzz` and the creds are
@@ -169,7 +181,7 @@ launchctl load -w ~/Library/LaunchAgents/com.buzzbridge.runner.plist
 open http://127.0.0.1:8787      # the status dashboard
 ```
 
-Full Path A kit and details: **`DEPLOY.md`**.
+Full Path A kit and details live in `DEPLOY.md`, in the separate private bridge repo.
 
 ### Path B — hosted Render Web Service (always-online + public URL)
 
@@ -179,20 +191,13 @@ run as a **Web Service** beside Langlayer on Render. The repo ships a multi-stag
 `cargo build -p buzz-cli --release`, pinned commit) into a slim Rust stage, then copies the
 binary into a Python runtime with the bridge. Render builds the image directly from the repo.
 
-Build context — commit these beside the `Dockerfile`:
+The bridge implementation Render builds — the `Dockerfile`, `requirements.txt` (coincurve +
+websockets, manylinux wheels), `bridge.py`, `translate_forward.py`, `runner.py`, the
+`online_relays_gps.csv` geo-relay directory, and `DEPLOY.md` — lives in a **separate private
+repo**, not in this one. Point Render at that repo as the build source. Keep the `BUZZ_*`
+secrets out of the image: the three values go in as Render **environment variables /
+secrets**, never baked into the build. Set `LANGLAYER_URL=https://langlayer.onrender.com`
+and the behavior vars above; Render injects `$PORT`.
 
-- `Dockerfile`, `requirements.txt` (coincurve + websockets — manylinux wheels)
-- `bridge.py`, `translate_forward.py`, `runner.py`
-- `.scratch/online_relays_gps.csv` (the geo-relay directory the bridge reads)
-
-Do **not** commit `.secrets/` or any `*.env` (the `.gitignore` excludes both) — the three
-`BUZZ_*` values go in as Render **environment variables / secrets**, never baked into the
-image. Set `LANGLAYER_URL=https://langlayer.onrender.com` and the behavior vars above;
-Render injects `$PORT`.
-
-**Read-side credential gate:** the runner reads the channel with the **bot** identity, and
-Buzz relay reads require a **NIP-OA owner-attestation auth tag** (`BUZZ_AUTH_TAG`) per
-request — the bot key alone returns `403 relay_membership_required`. That tag is minted via
-Buzz **Desktop agent-provisioning** (bounded with a `created_at<` clause and scoped with
-`kind=` clauses to only what the bridge reads, since an issued tag can't be revoked). Until
-that tag is set in Render's env, the container builds and boots but 403s on reads.
+The read-side credential gate above applies here too — the container builds and boots
+without `BUZZ_AUTH_TAG`, but 403s on reads until it's set in Render's env.
