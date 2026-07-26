@@ -52,7 +52,7 @@ h1{font-size:1.5rem}
   window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
   plausible.init()
 </script>
-</head>
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0E7C66"><link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"></head>
 <body>
 <h1>LANGUAGE <b>LAYER</b>: OPERATIONS</h1>
 <p class="sub">Every number on this page derives from signed delivery receipts. Refreshes every 2 seconds.</p>
@@ -130,5 +130,5 @@ async function tick(){
 tick(); setInterval(tick, 2000);
 </script>
 <p style="margin-top:2.5rem;font-size:.8rem;color:#4A514F;text-align:center">Encrypted in transit. Content never stored. <a href="/security">Security</a></p>
-</body>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js");</script></body>
 </html>

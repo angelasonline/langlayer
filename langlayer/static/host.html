@@ -51,7 +51,7 @@ form{background:#F4F4F1;border-radius:16px;padding:24px}
   window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
   plausible.init()
 </script>
-</head>
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0E7C66"><link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"></head>
 <body>
 <h1>Language Layer</h1>
 <p class="tag">The language layer for the internet. Turn it on like Wi-Fi.</p>
@@ -103,5 +103,5 @@ async function create(e){
 }
 function cp(id){ const el=document.getElementById(id); el.select(); document.execCommand('copy'); }
 </script>
-</body>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js");</script></body>
 </html>

@@ -67,7 +67,7 @@
   window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
   plausible.init()
 </script>
-</head>
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0E7C66"><link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"></head>
 <body>
 <div id="signin">
   <h1>Language Layer</h1>
@@ -235,5 +235,5 @@ function connect(endpointId){
 }
 boot();
 </script>
-</body>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js");</script></body>
 </html>
