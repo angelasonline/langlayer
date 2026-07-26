@@ -181,7 +181,7 @@ launchctl load -w ~/Library/LaunchAgents/com.buzzbridge.runner.plist
 open http://127.0.0.1:8787      # the status dashboard
 ```
 
-Full Path A kit and details live in `DEPLOY.md`, in the separate private bridge repo.
+Full Path A kit and details live in `DEPLOY.md`, in the separate bridge repo.
 
 ### Path B — hosted Render Web Service (always-online + public URL)
 
@@ -193,7 +193,7 @@ binary into a Python runtime with the bridge. Render builds the image directly f
 
 The bridge implementation Render builds — the `Dockerfile`, `requirements.txt` (coincurve +
 websockets, manylinux wheels), `bridge.py`, `translate_forward.py`, `runner.py`, the
-`online_relays_gps.csv` geo-relay directory, and `DEPLOY.md` — lives in a **separate private
+`online_relays_gps.csv` geo-relay directory, and `DEPLOY.md` — lives in a **separate
 repo**, not in this one. Point Render at that repo as the build source. Keep the `BUZZ_*`
 secrets out of the image: the three values go in as Render **environment variables /
 secrets**, never baked into the build. Set `LANGLAYER_URL=https://langlayer.onrender.com`
