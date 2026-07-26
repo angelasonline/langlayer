@@ -5,16 +5,16 @@ Civic-messaging bridge: get an organizer's announcement to a **place**, in every
 
 It does two things, from one Buzz **announcements** channel:
 
-1. **Mirror** — copy each announcement to a Nostr **geohash** channel (Bitchat's
+1. **Mirror** copy each announcement to a Nostr **geohash** channel (Bitchat's
    location-channel format) so phones physically near a place can receive it
    (`bridge.py`).
-2. **Translate-then-forward** — fan one announcement into **N language variants**
+2. **Translate-then-forward** fan one announcement into **N language variants**
    via Langlayer, and forward each to the geohash so every phone sees the message
    in its own language (`translate_forward.py`).
 
 This is a **self-mirror**, not a broadcast to strangers:
 
-- Destination geohash defaults to `1r23b` — **Point Nemo**, the oceanic pole of
+- Destination geohash defaults to `1r23b` - **Point Nemo**, the oceanic pole of
   inaccessibility (the farthest point on Earth from any land; no residents). The owner
   teleports their own Bitchat client to that cell to receive. (Avoid `s0000`: its center
   is beside null-island (0,0), where GPS-error clients congregate — not private.)
