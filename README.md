@@ -109,6 +109,7 @@ Shipped Goose recipes let an agent run an offline emergency drill and a schedule
 Additional documentation includes:
 
 * MCP agent guide
+* Buzz integration guide
 * Deployment documentation
 * Accessibility documentation
 * Pilot Kit
