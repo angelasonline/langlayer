@@ -1,7 +1,16 @@
 # buzz-ops-bridge
 
-Mirrors the Buzz **announcements** channel to a Nostr **geohash** channel (Bitchat's
-location-channel format) so announcements can be received on a second, resilient path.
+Civic-messaging bridge: get an organizer's announcement to a **place**, in every
+**language**, over a **resilient** path that survives when normal channels are down.
+
+It does two things, from one Buzz **announcements** channel:
+
+1. **Mirror** — copy each announcement to a Nostr **geohash** channel (Bitchat's
+   location-channel format) so phones physically near a place can receive it
+   (`bridge.py`).
+2. **Translate-then-forward** — fan one announcement into **N language variants**
+   via Langlayer, and forward each to the geohash so every phone sees the message
+   in its own language (`translate_forward.py`).
 
 This is a **self-mirror**, not a broadcast to strangers:
 
@@ -33,7 +42,7 @@ directory relays by haversine distance (union of the remote directory + bundled 
 and publishes to the `--relay-count` (default 8) nearest — a superset of the phone's
 nearest-5, with margin for directory drift. `--no-remote` uses only the bundled CSV.
 
-## Usage
+## Usage — mirror (`bridge.py`)
 
 ```bash
 # Dry-run (default). --preview N renders the exact kind-20000 payload for the N latest msgs.
@@ -71,21 +80,119 @@ Key flags: `--channel`, `--geohash`, `--relay-csv`, `--relay-count`, `--no-remot
 Relays (publish targets): computed per-geohash — the nearest relays to the destination
 cell center (see "How it picks relays" above), NOT a fixed list.
 
-## Running it hands-off (60s supervisor)
+## Translate-then-forward (`translate_forward.py`)
 
-`.scratch/cron-supervisor.sh` runs `bridge.py --live --rebroadcast` every 60s. It inherits
-the live session credentials **in memory** (nothing secret written to disk) rather than
-using system `crontab`, which would require the managed private key on disk. It survives
-the session ending but **not** a machine reboot.
+Same rails as the mirror, plus a translation hop. One announcement is rendered into N
+language variants and each is forwarded to the geohash tagged `["l", <lang>]`, so a phone
+filtered to its language sees only its own.
+
+```
+Buzz announcement (kind-9)
+    │
+    ▼
+Langlayer  POST {LANGLAYER_URL}/v1/render   →  [ (en, …), (es, …), (zh, …) ]
+    │   FAIL-OPEN: on any error the ORIGINAL text is still emitted (Langlayer's
+    │              Tier-4 floor — "never lose the original"), so nothing is dropped.
+    ▼
+one signed kind-20000 per variant  →  the geo-nearest relays (reuses bridge.py's selection)
+```
+
+**This now runs against the live endpoint — the offline stub is retired as the operating
+mode.** Earlier this prototype translated with a deterministic offline stub (every line
+read `offline-stub/stub q=0.50`). Langlayer's stateless `/v1/render` has since shipped
+(CI green), and `translate_forward.py` runs against it directly: pass
+`--langlayer-url https://langlayer.onrender.com` (real providers). The stub survives only
+as the automatic **fail-open** path if the endpoint is unreachable — never as the default.
+
+Confirmed live, preview-only, against `https://langlayer.onrender.com` for
+*"Water and a charging station are available in the community shelter."*:
+
+```
+es  →  Agua y una estación de carga están disponibles en el refugio comunitario.
+zh  →  社区避难所提供饮用水和充电站。
+```
+
+(`provider: ai-realtime`, `untranslated: false`, `quality_estimate ≈ 0.94` — genuine model
+output, no simulator prefix.)
 
 ```bash
-# start
-cd ~/.buzz/REPOS/buzz-ops-bridge && nohup zsh .scratch/cron-supervisor.sh >/dev/null 2>&1 &
+# Preview the per-language variants for the latest announcements (nothing published):
+python3 translate_forward.py --langlayer-url https://langlayer.onrender.com \
+    --languages en es zh --preview
 
-# status (is it alive? + recent forwards / RE-BROADCAST lines)
-ps -p "$(cat .scratch/bridge-cron.pid)" -o pid,etime,command
-tail -30 .scratch/bridge-cron.log
-
-# stop
-kill "$(cat .scratch/bridge-cron.pid)"
+# Go live — forward each variant to the geohash:
+python3 translate_forward.py --langlayer-url https://langlayer.onrender.com \
+    --languages en es zh --live
 ```
+
+With no `--langlayer-url` (and no `LANGLAYER_URL` env) it uses the offline stub — handy for
+running the demo with no server, but the output is simulated, not translated.
+
+Key flags: `--channel`, `--geohash`, `--languages`, `--source-language`, `--langlayer-url`
+(or `LANGLAYER_URL`), `--relay-csv`, `--relay-count`, `--no-remote`, `--label`, `--limit`,
+`--keyfile`, `--state`, `--preview`, `--live`, `--no-save`.
+
+## Staying online (durable runner)
+
+The forwarder is a *poller* — each run reads new announcements and forwards them, so
+"staying online" needs a supervisor loop that never dies. Plain background loops get
+**reaped** (~1 min) and don't survive a reboot, so `runner.py` is the real answer: a
+crash-proof forward loop **plus a public status page** anyone can open to watch it work:
+
+- `/` — live dashboard (state, uptime, last activity, next run, geohash, languages, Langlayer URL)
+- `/status` — JSON, `/healthz` — health probe
+
+No credentials are needed to *view* it; the loop catches per-iteration errors and keeps
+going; it fails fast with a clear message if creds are missing. It binds `0.0.0.0:$PORT`
+(hosts inject `$PORT`; defaults to `8787`).
+
+All three read env for both creds and behavior:
+
+| Purpose | Vars |
+|---------|------|
+| Credentials (read side, `buzz` CLI) | `BUZZ_RELAY_URL`, `BUZZ_PRIVATE_KEY` (bot key), `BUZZ_AUTH_TAG` |
+| Behavior | `LANGLAYER_URL`, `GEOHASH`, `LANGUAGES`, `SOURCE_LANGUAGE`, `INTERVAL`, `RELAY_COUNT`, `PORT` |
+
+### Path A — local launchd (durable, private)
+
+Runs whenever your Mac is on; survives logout **and** reboot. `buzz` and the creds are
+already local, so it's the low-friction path — but "viewable by others" only if you expose
+the port via a tunnel, so in practice it's the *private* durable option.
+
+```bash
+cd ~/.buzz/REPOS/buzz-ops-bridge
+cp deploy/bridge.env.example .secrets/bridge.env   # fill in real values, then:
+chmod 600 .secrets/bridge.env
+# edit the /ABSOLUTE/PATH placeholders in the plist to this repo's path:
+cp deploy/com.buzzbridge.runner.plist ~/Library/LaunchAgents/
+launchctl load -w ~/Library/LaunchAgents/com.buzzbridge.runner.plist
+open http://127.0.0.1:8787      # the status dashboard
+```
+
+Full Path A kit and details: **`DEPLOY.md`**.
+
+### Path B — hosted Render Web Service (always-online + public URL)
+
+The one that matches "up 24/7 and **anyone** can open a link and watch." Same `runner.py`,
+run as a **Web Service** beside Langlayer on Render. The repo ships a multi-stage
+`Dockerfile` that compiles the real Apache-2.0 `buzz` CLI from source (`block/buzz`,
+`cargo build -p buzz-cli --release`, pinned commit) into a slim Rust stage, then copies the
+binary into a Python runtime with the bridge. Render builds the image directly from the repo.
+
+Build context — commit these beside the `Dockerfile`:
+
+- `Dockerfile`, `requirements.txt` (coincurve + websockets — manylinux wheels)
+- `bridge.py`, `translate_forward.py`, `runner.py`
+- `.scratch/online_relays_gps.csv` (the geo-relay directory the bridge reads)
+
+Do **not** commit `.secrets/` or any `*.env` (the `.gitignore` excludes both) — the three
+`BUZZ_*` values go in as Render **environment variables / secrets**, never baked into the
+image. Set `LANGLAYER_URL=https://langlayer.onrender.com` and the behavior vars above;
+Render injects `$PORT`.
+
+**Read-side credential gate:** the runner reads the channel with the **bot** identity, and
+Buzz relay reads require a **NIP-OA owner-attestation auth tag** (`BUZZ_AUTH_TAG`) per
+request — the bot key alone returns `403 relay_membership_required`. That tag is minted via
+Buzz **Desktop agent-provisioning** (bounded with a `created_at<` clause and scoped with
+`kind=` clauses to only what the bridge reads, since an issued tag can't be revoked). Until
+that tag is set in Render's env, the container builds and boots but 403s on reads.
