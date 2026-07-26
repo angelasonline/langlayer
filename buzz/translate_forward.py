@@ -12,7 +12,7 @@ Pipeline
         │
         ▼
     LanglayerClient.render(text, targets)   →  [Variant(lang, modality, content), ...]
-        │   • HTTP mode: POST {LANGLAYER_URL}/v1/render   (PROPOSED endpoint — see below)
+        │   • HTTP mode: POST {LANGLAYER_URL}/v1/render   (LIVE — see below)
         │   • Offline mode: deterministic labeled stub, so the demo runs with no server
         │   • FAIL-OPEN: on any error we still emit the ORIGINAL text (Langlayer Tier-4:
         │                "never lose the original"), so nothing is ever dropped.
@@ -23,15 +23,17 @@ Pipeline
     published to the N relays geographically nearest the geohash — the exact set the
     phone subscribes to (reuses bridge.select_relays, the fix that made 1r23b work).
 
-Why a NEW endpoint is needed in Langlayer (the repo update Angela asked for)
----------------------------------------------------------------------------
-Langlayer today renders per *attendee*: you POST /v1/channels/{cid}/events and it
-delivers a variant to each joined attendee's endpoint, read back via the transcript.
-That is stateful and assumes attendees have joined for every language. A transport
-bridge like this one needs a STATELESS "render these N languages for this payload"
-call that returns the artifacts directly. That endpoint does not exist yet — this
-client is written against the proposed shape and falls back to the offline stub until
-the endpoint ships. See LANGLAYER_INTEGRATION.md for the full change list.
+The endpoint this needs (now shipped)
+-------------------------------------
+Langlayer's per-*attendee* API (POST /v1/channels/{cid}/events, read back via the
+transcript) is stateful and assumes attendees have joined for every language. A
+transport bridge like this one needs a STATELESS "render these N languages for this
+payload" call that returns the artifacts directly. That endpoint — /v1/render — has
+since shipped, so this client runs against the live endpoint: point --langlayer-url
+(or LANGLAYER_URL) at a real instance, e.g. https://langlayer.onrender.com. The
+offline stub is no longer the operating mode; it remains only as the automatic
+fail-open path when no URL is set or the endpoint is unreachable. See
+LANGLAYER_INTEGRATION.md for the full change list.
 
 Reuses the proven machinery in bridge.py (geohash decode, geo-nearest relay selection,
 schnorr signing, publish, seen-state) rather than duplicating it.
