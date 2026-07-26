@@ -10,7 +10,19 @@ Language Layer enables devices to provide language access without depending on a
 
 ## Why Language Layer?
 
-Language Layer is built around a few principles.
+**Why not just use your phone's language setting?**
+
+A phone's language setting translates that phone's menus. It does not translate a live announcement someone just made in a community space. 
+
+**Why not just use Google Translate?**
+
+Doing so requires a person knowing an announcement is happening, unlocking their phone, opening an app, and pointing in the corect area before the moment passes. Live announcements are are often short and unrepeated. By the time an app is open, the message may be over.
+
+**What Language Layer does instead**
+
+The event host turns Language Layer on and posts one QR code. Every announcement they make reaches every device in the room, each in that person's chosen language and format, at the same moment. No app, no account, and no one having to hold up a phone hoping to catch the words or the signing in time.
+
+**Language Layer is built around a few principles.**
 
 * Open protocols create a foundation for interoperable agents.
 * AI systems maintain resilient pathways for communication and safety, even during provider outages.
