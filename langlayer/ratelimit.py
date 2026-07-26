@@ -15,6 +15,7 @@ LIMITS = {
     "join": (30, 30 / 60),              # 30 per minute
     "ingest": (60, 60 / 60),            # 60 announcements per minute
     "speak": (20, 20 / 60),
+    "render": (30, 30 / 60),            # 30 stateless renders/min (fans out to N model calls each)
     "read": (240, 240 / 60),
 }
 
